@@ -1,0 +1,66 @@
+# Dependências
+node_modules/
+
+# Variáveis de ambiente
+.env
+.env.*
+!.env.example
+
+# Build e artefatos
+dist/
+build/
+coverage/
+.vercel/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Arquivos temporários e cache
+.cache/
+.temp/
+tmp/
+temp/
+
+# Sistema operacional / editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Arquivos locais e uploads
+.uploads/
+
+# Certificados e chaves locais
+*.key
+*.crt
+*.p12
+
+# Arquivos compactados e dumps
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+*.sql.bak
+
+# Python eventual
+__pycache__/
+*.pyc
+
+
+# Outros arquivos
+CONFIGURACAO-HIVEMQ.docx
+HiveMQ.html
+HiveMQ_files/
+SENHAS-HIVEMQ.txt
+banco_atm.sql
+deploy-checklist.md
+docs/
+hivemq-configuration.txt
+login-senha-esp32-wifi.txt
+~$NFIGURACAO-HIVEMQ.docx

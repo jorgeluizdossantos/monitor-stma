@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STMA - Monitor MQTT</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --line: #dbe3ef;
+      --text: #192536;
+      --muted: #607086;
+      --brand: #2558d9;
+      --brand-dark: #1943ad;
+      --success: #1f8f57;
+      --warning: #c27a11;
+      --danger: #b52a2a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 8px 28px rgba(19, 34, 61, 0.06);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+    .topbar, .cards, .grid-2 {
+      display: grid;
+      gap: 16px;
+    }
+    .topbar { grid-template-columns: 1.2fr .8fr; }
+    .cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .eyebrow {
+      font-size: .8rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    h1, h2, h3 { margin: 0 0 10px; }
+    p { margin: 0; color: var(--muted); line-height: 1.5; }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f8fbff;
+      width: fit-content;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #adb8c9;
+    }
+    .dot.online { background: var(--success); }
+    .card {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fbfdff;
+    }
+    .value {
+      font-size: 1.9rem;
+      font-weight: 800;
+      margin-top: 10px;
+    }
+    .topic {
+      font-size: .82rem;
+      color: var(--muted);
+    }
+    .updated {
+      margin-top: 10px;
+      font-size: .82rem;
+      color: var(--muted);
+    }
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: .9rem;
+      font-weight: 600;
+    }
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      font-size: .95rem;
+    }
+    button, a.button {
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: .94rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-primary { background: var(--brand); color: #fff; }
+    .btn-secondary { background: #eef3ff; color: var(--brand-dark); }
+    .btn-led.on { background: var(--danger); color: #fff; }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .message {
+      display: none;
+      padding: 12px 14px;
+      border-radius: 12px;
+      margin-top: 14px;
+      font-size: .94rem;
+    }
+    .message.show { display: block; }
+    .message.success { background: #eefaf2; border: 1px solid #b8e2c6; color: #176b3f; }
+    .message.error { background: #fff2f2; border: 1px solid #efc0c0; color: var(--danger); }
+    @media (max-width: 960px) {
+      .topbar, .cards, .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="panel">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">STMA • monitor MQTT</div>
+          <h1>Monitor em tempo real</h1>
+          <p>Monitor MQTT do STMA com persistência da telemetria via API sempre que temperatura e umidade chegam em conjunto.</p>
+        </div>
+        <div>
+          <div class="status"><span class="dot" id="dot"></span><span id="statusText">A conectar...</span></div>
+          <div class="actions" style="margin-top:14px">
+            <a class="button btn-secondary" href="dashboard.html">Voltar ao painel</a>
+            <button class="btn-primary btn-led" id="btnLed" type="button" disabled>Ligar LED</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="message" class="message"></div>
+    </section>
+
+    <section class="cards">
+      <div class="card">
+        <h3>Temperatura</h3>
+        <div class="topic">stma/temperatura</div>
+        <div class="value" id="temperatura">--</div>
+        <div class="updated" id="temperaturaHora">Aguardando dados</div>
+      </div>
+      <div class="card">
+        <h3>Umidade</h3>
+        <div class="topic">stma/umidade</div>
+        <div class="value" id="umidade">--</div>
+        <div class="updated" id="umidadeHora">Aguardando dados</div>
+      </div>
+      <div class="card">
+        <h3>Porta</h3>
+        <div class="topic">stma/porta</div>
+        <div class="value" id="porta">--</div>
+        <div class="updated" id="portaHora">Aguardando dados</div>
+      </div>
+      <div class="card">
+        <h3>LED</h3>
+        <div class="topic">stma/led</div>
+        <div class="value" id="led">--</div>
+        <div class="updated" id="ledHora">Aguardando dados</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Controle automático</h2>
+      <div class="grid-2">
+        <label>Acender LED a partir de
+          <input id="limite" type="number" min="0" max="60" step="0.5" placeholder="28">
+        </label>
+        <div class="actions" style="align-items:end">
+          <button class="btn-primary" id="btnAplicar" type="button" disabled>Aplicar limite</button>
+          <button class="btn-secondary" id="btnDesativar" type="button" disabled>Desativar automático</button>
+        </div>
+      </div>
+      <p id="limiteInfo" style="margin-top:14px">Limite ativo no ESP32: aguardando informação.</p>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+  <script src="js/stma-api.js"></script>
+  <script>
+    const BROKER_URL = 'wss://broker.hivemq.com:8884/mqtt';
+    const TOPICOS = ['stma/temperatura', 'stma/umidade', 'stma/porta', 'stma/led', 'stma/limite_atual'];
+    const TOPICO_COMANDO = 'stma/publisher';
+    const TOPICO_LIMITE = 'stma/limite';
+
+    const dotEl = document.getElementById('dot');
+    const statusTextEl = document.getElementById('statusText');
+    const btnLed = document.getElementById('btnLed');
+    const btnAplicar = document.getElementById('btnAplicar');
+    const btnDesativar = document.getElementById('btnDesativar');
+    const limiteEl = document.getElementById('limite');
+    const limiteInfoEl = document.getElementById('limiteInfo');
+    const messageEl = document.getElementById('message');
+
+    let ultimaTemperatura = null;
+    let ultimaUmidade = null;
+    let ledAceso = false;
+    let limitePendente = false;
+    let timerConfirmacao = null;
+
+    function showMessage(text, type = 'success') {
+      messageEl.className = `message show ${type}`;
+      messageEl.textContent = text;
+    }
+
+    function updateCard(id, text) {
+      document.getElementById(id).textContent = text;
+      document.getElementById(`${id}Hora`).textContent = `Atualizado às ${new Date().toLocaleTimeString('pt-BR')}`;
+    }
+
+    function setStatus(online, text) {
+      dotEl.classList.toggle('online', online);
+      statusTextEl.textContent = text;
+      btnLed.disabled = !online;
+      btnAplicar.disabled = !online;
+      btnDesativar.disabled = !online;
+    }
+
+    function syncLedButton() {
+      btnLed.textContent = ledAceso ? 'Desligar LED' : 'Ligar LED';
+      btnLed.classList.toggle('on', ledAceso);
+    }
+
+    async function persistirMedicao() {
+      if (ultimaTemperatura == null || ultimaUmidade == null) return;
+      try {
+        await STMA.registrarMedicao({
+          temp_vlr: ultimaTemperatura,
+          umidade_vlr: ultimaUmidade
+        });
+      } catch (error) {
+        showMessage(error.message || 'Falha ao persistir medição na API.', 'error');
+      }
+    }
+
+    function enviarLimite(valor) {
+      limitePendente = true;
+      limiteInfoEl.textContent = 'Enviando limite ao ESP32...';
+      client.publish(TOPICO_LIMITE, valor, { qos: 1, retain: true });
+      clearTimeout(timerConfirmacao);
+      timerConfirmacao = setTimeout(() => {
+        if (limitePendente) {
+          limiteInfoEl.textContent = 'Sem confirmação do ESP32. Verifique a ligação MQTT.';
+        }
+      }, 5000);
+    }
+
+    btnLed.addEventListener('click', () => {
+      const comando = ledAceso ? 'l' : 'L';
+      client.publish(TOPICO_COMANDO, comando);
+    });
+
+    btnAplicar.addEventListener('click', () => {
+      const valor = parseFloat(limiteEl.value);
+      if (Number.isNaN(valor)) {
+        showMessage('Informe um limite válido em graus Celsius.', 'error');
+        return;
+      }
+      enviarLimite(valor.toFixed(1));
+    });
+
+    btnDesativar.addEventListener('click', () => {
+      enviarLimite('off');
+    });
+
+    const client = mqtt.connect(BROKER_URL, {
+      clientId: `stma_web_${Math.random().toString(16).slice(2, 10)}`,
+      reconnectPeriod: 3000
+    });
+
+    client.on('connect', () => {
+      setStatus(true, 'Conectado');
+      client.subscribe(TOPICOS);
+    });
+
+    client.on('reconnect', () => setStatus(false, 'A reconectar...'));
+    client.on('close', () => setStatus(false, 'Desconectado'));
+    client.on('error', () => setStatus(false, 'Erro de conexão'));
+
+    client.on('message', async (topico, payload) => {
+      const texto = payload.toString().trim();
+
+      if (topico === 'stma/temperatura') {
+        const valor = parseFloat(texto);
+        ultimaTemperatura = Number.isNaN(valor) ? null : valor;
+        updateCard('temperatura', Number.isNaN(valor) ? 'Leitura inválida' : `${valor.toFixed(1)} °C`);
+      }
+
+      if (topico === 'stma/umidade') {
+        const valor = parseFloat(texto);
+        ultimaUmidade = Number.isNaN(valor) ? null : valor;
+        updateCard('umidade', Number.isNaN(valor) ? 'Leitura inválida' : `${valor.toFixed(1)} %`);
+        await persistirMedicao();
+      }
+
+      if (topico === 'stma/porta') {
+        updateCard('porta', /fechada/i.test(texto) ? 'Fechada' : 'Aberta');
+      }
+
+      if (topico === 'stma/led') {
+        ledAceso = /aceso/i.test(texto);
+        updateCard('led', ledAceso ? 'Aceso' : 'Apagado');
+        syncLedButton();
+      }
+
+      if (topico === 'stma/limite_atual') {
+        limitePendente = false;
+        clearTimeout(timerConfirmacao);
+        if (/^off/i.test(texto)) {
+          limiteInfoEl.textContent = 'Controle automático desativado.';
+          return;
+        }
+
+        const valor = parseFloat(texto);
+        if (Number.isNaN(valor)) {
+          limiteInfoEl.textContent = `Resposta inesperada do ESP32: ${texto}`;
+          return;
+        }
+
+        limiteInfoEl.textContent = `Limite ativo no ESP32: ${valor.toFixed(1)} °C`;
+        limiteEl.value = valor.toFixed(1);
+      }
+    });
+
+    STMA.me().catch(() => {
+      window.location.href = 'login.html';
+    });
+  </script>
+</body>
+</html>

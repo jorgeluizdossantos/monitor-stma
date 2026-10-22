@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STMA - Painel de Controle e Monitoramento</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f7f4ed; color: #1c1c1c; }
+        .font-mono-tech { font-family: 'JetBrains Mono', monospace; }
+        .btn-lovable {
+            background-color: #1c1c1c; color: #fcfbf8;
+            box-shadow: rgba(255, 255, 255, 0.2) 0px 0.5px 0px 0px inset, rgba(0, 0, 0, 0.2) 0px 0px 0px 0.5px inset;
+        }
+        .btn-lovable:active { opacity: 0.8; }
+        .nav-link.active { background-color: #eceae4; font-weight: 600; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #c0392b; display: inline-block; }
+        .dot.online { background: #27ae60; }
+    </style>
+</head>
+<body class="min-h-screen flex">
+
+    <aside class="w-72 border-r border-[#eceae4] bg-[#f7f4ed] p-6 flex flex-col justify-between hidden md:flex sticky top-0 h-screen">
+        <div class="space-y-6">
+            <div>
+                <span class="text-[11px] font-mono-tech uppercase tracking-wider text-[#5f5f5d] block">STMA Core v1.0</span>
+                <h1 class="text-[20px] font-bold text-[#1c1c1c]">Sistema de Monitoria</h1>
+            </div>
+
+            <nav class="space-y-1.5" id="menu-navegacao">
+                <button onclick="mudarAba('monitor')" id="link-monitor" class="nav-link active w-full text-left px-3.5 py-2.5 rounded-[6px] text-[14px] transition-colors flex items-center gap-2.5">
+                    📊 Monitoramento MQTT
+                </button>
+                
+                <button onclick="mudarAba('usuario')" id="link-usuario" class="nav-link w-full text-left px-3.5 py-2.5 rounded-[6px] text-[14px] transition-colors hidden items-center gap-2.5">
+                    👤 Adicionar Usuário <span class="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-mono">Admin</span>
+                </button>
+
+                <button onclick="mudarAba('empresa')" id="link-empresa" class="nav-link w-full text-left px-3.5 py-2.5 rounded-[6px] text-[14px] transition-colors hidden items-center gap-2.5">
+                    🏢 Cadastrar Empresa <span class="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded font-mono">Admin</span>
+                </button>
+
+                <button onclick="mudarAba('setor')" id="link-setor" class="nav-link w-full text-left px-3.5 py-2.5 rounded-[6px] text-[14px] transition-colors flex items-center gap-2.5">
+                    📁 Adicionar Setor
+                </button>
+                
+                <button onclick="mudarAba('equipamento')" id="link-equipamento" class="nav-link w-full text-left px-3.5 py-2.5 rounded-[6px] text-[14px] transition-colors flex items-center gap-2.5">
+                    ⚡ Adicionar Equipamento
+                </button>
+            </nav>
+        </div>
+
+        <div>
+            <div class="text-[11px] font-mono-tech text-[#5f5f5d] mb-3 px-1" id="usuario-logado-info">A verificar sessão...</div>
+            <button onclick="sair()" class="w-full py-2 px-3 text-center text-[13px] font-mono-tech border border-[#eceae4] rounded-[6px] hover:bg-[#eceae4]/50 transition-colors">Desconectar</button>
+        </div>
+    </aside>
+
+    <main class="flex-1 p-8 overflow-y-auto">
+        
+        <div id="aba-monitor" class="space-y-6">
+            <div class="flex justify-between items-center border-b border-[#eceae4] pb-4">
+                <div>
+                    <span id="label-empresa" class="text-[12px] font-mono-tech uppercase text-[#5f5f5d]">A carregar unidade...</span>
+                    <h2 class="text-[28px] font-bold text-[#1c1c1c]">Monitor STMA</h2>
+                </div>
+                
+                <div class="flex items-center space-x-3 bg-white/50 px-3.5 py-1.5 rounded-full border border-[#eceae4]">
+                    <span class="dot" id="dot"></span>
+                    <span id="status-text" class="text-[13px] font-medium text-[#5f5f5d]">A ligar ao MQTT...</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] shadow-sm flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-[12px] font-bold tracking-wider text-[#1c1c1c] uppercase">Temperatura</h3>
+                        <div class="text-[11px] font-mono-tech text-[#5f5f5d] mb-3">stma/temperatura</div>
+                        <div class="text-[32px] font-bold font-mono-tech text-[#1c1c1c]" id="temperatura">--</div>
+                    </div>
+                    <div class="text-[11px] font-mono-tech text-[#5f5f5d] mt-4" id="temperatura-hora">Aguardando dados</div>
+                </div>
+
+                <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] shadow-sm flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-[12px] font-bold tracking-wider text-[#1c1c1c] uppercase">Humidade</h3>
+                        <div class="text-[11px] font-mono-tech text-[#5f5f5d] mb-3">stma/umidade</div>
+                        <div class="text-[32px] font-bold font-mono-tech text-[#3b82f6]" id="umidade">--</div>
+                    </div>
+                    <div class="text-[11px] font-mono-tech text-[#5f5f5d] mt-4" id="umidade-hora">Aguardando dados</div>
+                </div>
+
+                <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] shadow-sm flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-[12px] font-bold tracking-wider text-[#1c1c1c] uppercase">Porta</h3>
+                        <div class="text-[11px] font-mono-tech text-[#5f5f5d] mb-3">stma/porta</div>
+                        <div class="text-[28px] font-bold text-[#1c1c1c]" id="porta">--</div>
+                    </div>
+                    <div class="text-[11px] font-mono-tech text-[#5f5f5d] mt-4" id="porta-hora">Aguardando dados</div>
+                </div>
+
+                <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] shadow-sm flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-[12px] font-bold tracking-wider text-[#1c1c1c] uppercase">LED</h3>
+                        <div class="text-[11px] font-mono-tech text-[#5f5f5d] mb-2">stma/led</div>
+                        <div class="text-[24px] font-bold text-[#1c1c1c]" id="led">--</div>
+                    </div>
+                    <div>
+                        <button class="mt-3 w-full py-2.5 rounded-[6px] text-[13px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50" id="btn-led" disabled>Ligar LED</button>
+                        <div class="text-[11px] font-mono-tech text-[#5f5f5d] mt-2" id="led-hora">Aguardando dados</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="aba-usuario" class="space-y-6 hidden max-w-xl">
+            <div class="border-b border-[#eceae4] pb-4">
+                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Adicionar Usuário</h2>
+                <p class="text-[14px] text-[#5f5f5d]">Área restrita ao Administrador.</p>
+            </div>
+            <form onsubmit="cadastrarUsuarioApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome Completo</label>
+                    <input type="text" id="usr_nome" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: João Silva">
+                </div>
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">E-mail</label>
+                    <input type="email" id="usr_email" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="joao@empresa.com">
+                </div>
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Palavra-passe</label>
+                    <input type="password" id="usr_senha" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                </div>
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa ID</label>
+                    <input type="number" id="usr_empresa_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 1">
+                </div>
+                <div class="flex items-center gap-2 pt-2">
+                    <input type="checkbox" id="usr_is_admin" class="rounded border-[#eceae4]">
+                    <label for="usr_is_admin" class="text-[13px] font-medium text-[#1c1c1c]">Conceder privilégios de Administrador</label>
+                </div>
+                <button type="submit" class="w-full py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Cadastrar Usuário</button>
+            </form>
+        </div>
+
+        <div id="aba-empresa" class="space-y-6 hidden max-w-xl">
+            <div class="border-b border-[#eceae4] pb-4">
+                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Cadastrar Empresa</h2>
+                <p class="text-[14px] text-[#5f5f5d]">Área restrita ao Administrador.</p>
+            </div>
+            <form onsubmit="cadastrarEmpresaApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa ID</label>
+                    <input type="number" id="emp_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 1">
+                </div>
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome da Empresa</label>
+                    <input type="text" id="emp_nome" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Rancho Santa Luzia">
+                </div>
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Endereço</label>
+                    <input type="text" id="emp_end" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Rodovia SP-340">
+                </div>
+                <button type="submit" class="w-full py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Salvar Empresa no Aiven</button>
+            </form>
+        </div>
+
+        <div id="aba-setor" class="space-y-6 hidden max-w-xl">
+            <div class="border-b border-[#eceae4] pb-4">
+                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Adicionar Setor</h2>
+                <p class="text-[14px] text-[#5f5f5d]">Adicione novos setores à unidade.</p>
+            </div>
+            <form onsubmit="cadastrarSetorApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa ID</label>
+                    <input type="number" id="setor_empresa_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 1">
+                </div>
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Setor ID</label>
+                    <input type="number" id="setor_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 10">
+                </div>
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome do Setor</label>
+                    <input type="text" id="setor_name" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Câmara Fria">
+                </div>
+                <button type="submit" class="w-full py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Salvar Setor</button>
+            </form>
+        </div>
+
+        <div id="aba-equipamento" class="space-y-6 hidden max-w-xl">
+            <div class="border-b border-[#eceae4] pb-4">
+                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Adicionar Equipamento</h2>
+                <p class="text-[14px] text-[#5f5f5d]">Vincule hardwares ou sensores da unidade.</p>
+            </div>
+            <form onsubmit="cadastrarEquipamentoApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa ID</label>
+                        <input type="number" id="eq_empresa_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 1">
+                    </div>
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Setor ID</label>
+                        <input type="number" id="eq_setor_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 10">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Equipamento ID</label>
+                    <input type="number" id="eq_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 101">
+                </div>
+                <div>
+                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome do Equipamento</label>
+                    <input type="text" id="eq_name" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Sensor DHT22">
+                </div>
+                <button type="submit" class="w-full py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Salvar Equipamento</button>
+            </form>
+        </div>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+    <script>
+        let usuarioAtual = null;
+
+        async function validarSessaoEInicializar() {
+            try {
+                const res = await fetch('/api/me');
+                if (!res.ok) {
+                    window.location.href = "login.html";
+                    return;
+                }
+
+                const data = await res.json();
+                if (!data.authenticated || !data.usuario) {
+                    window.location.href = "login.html";
+                    return;
+                }
+
+                usuarioAtual = data.usuario;
+                document.getElementById('usuario-logado-info').innerText = `Usuário: ${usuarioAtual.user_nome || 'Conectado'}`;
+
+                if (usuarioAtual.isAdmin) {
+                    const linkUsr = document.getElementById('link-usuario');
+                    const linkEmp = document.getElementById('link-empresa');
+                    if (linkUsr) { linkUsr.classList.remove('hidden'); linkUsr.classList.add('flex'); }
+                    if (linkEmp) { linkEmp.classList.remove('hidden'); linkEmp.classList.add('flex'); }
+                }
+
+                carregarEmpresaLogada(usuarioAtual.empresa_id);
+            } catch (err) {
+                console.error("Erro ao validar sessão:", err);
+                window.location.href = "login.html";
+            }
+        }
+
+        validarSessaoEInicializar();
+
+        function mudarAba(aba) {
+            const abas = ['monitor', 'usuario', 'empresa', 'setor', 'equipamento'];
+            abas.forEach(a => {
+                const elAba = document.getElementById(`aba-${a}`);
+                const elLink = document.getElementById(`link-${a}`);
+                if (elAba) elAba.classList.add('hidden');
+                if (elLink) elLink.classList.remove('active');
+            });
+
+            const abaAtiva = document.getElementById(`aba-${aba}`);
+            const linkAtivo = document.getElementById(`link-${aba}`);
+            if (abaAtiva) abaAtiva.classList.remove('hidden');
+            if (linkAtivo) linkAtivo.classList.add('active');
+        }
+
+        async function carregarEmpresaLogada(empresaId) {
+            try {
+                const res = await fetch('/api/empresas');
+                if (!res.ok) throw new Error();
+                const empresas = await res.json();
+                const empresa = empresas.find(e => e.empresa_id == empresaId);
+                document.getElementById('label-empresa').innerText = empresa ? `Unidade: ${empresa.nome_empresa}` : `Empresa ID: ${empresaId || '--'}`;
+            } catch (e) {
+                document.getElementById('label-empresa').innerText = `Unidade ID: ${empresaId || '--'}`;
+            }
+        }
+
+        async function sair() {
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+            } catch (e) {}
+            window.location.href = "login.html";
+        }
+
+        const BROKER_URL = "wss://broker.hivemq.com:8884/mqtt";
+        const TOPICOS = ["stma/temperatura", "stma/umidade", "stma/porta", "stma/led"];
+        const TOPICO_COMANDO = "stma/publisher";
+
+        const dot = document.getElementById("dot");
+        const statusText = document.getElementById("status-text");
+        const btnLed = document.getElementById("btn-led");
+        let ledAceso = false;
+
+        function setStatus(online, texto) {
+            if (dot) dot.classList.toggle("online", online);
+            if (statusText) statusText.textContent = texto;
+            if (btnLed) btnLed.disabled = !online;
+        }
+
+        function atualizarBotao() {
+            if (!btnLed) return;
+            btnLed.textContent = ledAceso ? "Desligar LED" : "Ligar LED";
+            btnLed.style.background = ledAceso ? "#c0392b" : "#27ae60";
+        }
+
+        function atualizarCard(id, texto) {
+            const el = document.getElementById(id);
+            const elHora = document.getElementById(id + "-hora");
+            if (el) el.textContent = texto;
+            if (elHora) elHora.textContent = "Atualizado às " + new Date().toLocaleTimeString("pt-BR");
+        }
+
+        if (btnLed) {
+            btnLed.addEventListener("click", () => {
+                const comando = ledAceso ? "l" : "L";
+                if (client && client.connected) {
+                    client.publish(TOPICO_COMANDO, comando);
+                }
+            });
+        }
+
+        const client = mqtt.connect(BROKER_URL, {
+            clientId: "stma_web_" + Math.random().toString(16).slice(2, 10),
+            reconnectPeriod: 3000
+        });
+
+        client.on("connect", () => {
+            setStatus(true, "Conectado");
+            client.subscribe(TOPICOS);
+        });
+
+        client.on("reconnect", () => setStatus(false, "A reconectar..."));
+        client.on("close", () => setStatus(false, "Desconectado"));
+        client.on("error", () => setStatus(false, "Erro de conexão"));
+
+        let ultimaTemp = null;
+        let ultimaUmidade = null;
+
+        client.on("message", (topico, payload) => {
+            const texto = payload.toString().trim();
+
+            if (topico === "stma/temperatura") {
+                const v = parseFloat(texto);
+                ultimaTemp = isNaN(v) ? null : v;
+                atualizarCard("temperatura", isNaN(v) ? "Leitura inválida" : v.toFixed(1) + " °C");
+            }
+
+            if (topico === "stma/umidade") {
+                const v = parseFloat(texto);
+                ultimaUmidade = isNaN(v) ? null : v;
+                atualizarCard("umidade", isNaN(v) ? "Leitura inválida" : v.toFixed(1) + " %");
+                
+                if (ultimaTemp !== null && ultimaUmidade !== null) {
+                    enviarMedicaoParaAiven(ultimaTemp, ultimaUmidade);
+                }
+            }
+
+            if (topico === "stma/porta") {
+                const fechada = /fechada/i.test(texto);
+                atualizarCard("porta", fechada ? "Fechada" : "Aberta");
+            }
+
+            if (topico === "stma/led") {
+                const aceso = /aceso/i.test(texto);
+                atualizarCard("led", aceso ? "Aceso" : "Apagado");
+                ledAceso = aceso;
+                atualizarBotao();
+            }
+        });
+
+        async function enviarMedicaoParaAiven(temp, umidade) {
+            try {
+                await fetch('/api/medicoes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ temp_vlr: temp, umidade_vlr: umidade })
+                });
+            } catch (err) {}
+        }
+
+        async function cadastrarUsuarioApi(e) {
+            e.preventDefault();
+            const dados = {
+                user_nome: document.getElementById('usr_nome').value,
+                user_email: document.getElementById('usr_email').value,
+                user_senha: document.getElementById('usr_senha').value,
+                empresa_id: parseInt(document.getElementById('usr_empresa_id').value),
+                isAdmin: document.getElementById('usr_is_admin').checked
+            };
+            try {
+                const res = await fetch('/api/usuarios', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados)
+                });
+                const json = await res.json();
+                alert(json.message || "Utilizador cadastrado com sucesso!");
+                e.target.reset();
+                mudarAba('monitor');
+            } catch (err) {
+                alert("Erro ao cadastrar utilizador.");
+            }
+        }
+
+        async function cadastrarEmpresaApi(e) {
+            e.preventDefault();
+            const dados = {
+                empresa_id: parseInt(document.getElementById('emp_id').value),
+                nome_empresa: document.getElementById('emp_nome').value,
+                endereco_empresa: document.getElementById('emp_end').value
+            };
+            try {
+                const res = await fetch('/api/empresas', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados)
+                });
+                const json = await res.json();
+                alert(json.message || "Empresa cadastrada com sucesso!");
+                e.target.reset();
+                mudarAba('monitor');
+                if (usuarioAtual) carregarEmpresaLogada(usuarioAtual.empresa_id);
+            } catch (err) {
+                alert("Erro ao cadastrar empresa.");
+            }
+        }
+
+        async function cadastrarSetorApi(e) {
+            e.preventDefault();
+            const dados = {
+                empresa_id: parseInt(document.getElementById('setor_empresa_id').value),
+                setor_id: parseInt(document.getElementById('setor_id').value),
+                setor_name: document.getElementById('setor_name').value
+            };
+            try {
+                const res = await fetch('/api/setores', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados)
+                });
+                const json = await res.json();
+                alert(json.message || "Setor cadastrado com sucesso!");
+                e.target.reset();
+                mudarAba('monitor');
+            } catch (err) {
+                alert("Erro ao cadastrar setor.");
+            }
+        }
+
+        async function cadastrarEquipamentoApi(e) {
+            e.preventDefault();
+            const dados = {
+                empresa_id: parseInt(document.getElementById('eq_empresa_id').value),
+                setor_id: parseInt(document.getElementById('eq_setor_id').value),
+                equipamento_id: parseInt(document.getElementById('eq_id').value),
+                equioamento_name: document.getElementById('eq_name').value
+            };
+            try {
+                const res = await fetch('/api/equipamentos', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados)
+                });
+                const json = await res.json();
+                alert(json.message || "Equipamento cadastrado com sucesso!");
+                e.target.reset();
+                mudarAba('monitor');
+            } catch (err) {
+                alert("Erro ao cadastrar equipamento.");
+            }
+        }
+    </script>
+</body>
+</html>

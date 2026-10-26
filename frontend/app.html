@@ -17,12 +17,13 @@
         .nav-link.active { background-color: #eceae4; font-weight: 600; }
         .dot { width: 10px; height: 10px; border-radius: 50%; background: #c0392b; display: inline-block; }
         .dot.online { background: #27ae60; }
+        body.app-pending main { visibility: hidden; }
         body.embedded { display: block; min-height: auto; }
         body.embedded aside { display: none !important; }
         body.embedded main { padding: 0 !important; overflow: visible !important; }
     </style>
 </head>
-<body class="min-h-screen flex">
+<body class="min-h-screen flex app-pending">
 
     <aside class="w-72 border-r border-[#eceae4] bg-[#f7f4ed] p-6 flex flex-col justify-between hidden md:flex sticky top-0 h-screen">
         <div class="space-y-6">
@@ -630,6 +631,9 @@
                 usuarioAtual = data.usuario;
                 document.getElementById('usuario-logado-info').innerText = `Usuário: ${usuarioAtual.user_nome || 'Conectado'}`;
 
+                mudarAba(APP_INITIAL_VIEW);
+                document.body.classList.remove('app-pending');
+
                 await carregarEmpresasBase({
                     usuario: usuarioAtual?.empresa_id || '',
                     setor: usuarioAtual?.empresa_id || '',
@@ -667,9 +671,7 @@
             }
         }
 
-        validarSessaoEInicializar().finally(() => {
-            mudarAba(APP_INITIAL_VIEW);
-        });
+        validarSessaoEInicializar();
 
         function mudarAba(aba) {
             const abas = ['monitor', 'usuario', 'empresa', 'setor', 'ambiente', 'dispositivo', 'equipamento'];

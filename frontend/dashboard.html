@@ -44,6 +44,14 @@
                 <button onclick="mudarAba('setor')" id="link-setor" class="nav-link w-full text-left px-3.5 py-2.5 rounded-[6px] text-[14px] transition-colors flex items-center gap-2.5">
                     📁 Adicionar Setor
                 </button>
+
+                <button onclick="mudarAba('ambiente')" id="link-ambiente" class="nav-link w-full text-left px-3.5 py-2.5 rounded-[6px] text-[14px] transition-colors flex items-center gap-2.5">
+                    🌡️ Gerenciar Ambiente
+                </button>
+
+                <button onclick="mudarAba('dispositivo')" id="link-dispositivo" class="nav-link w-full text-left px-3.5 py-2.5 rounded-[6px] text-[14px] transition-colors flex items-center gap-2.5">
+                    📟 Gerenciar Dispositivo
+                </button>
                 
                 <button onclick="mudarAba('equipamento')" id="link-equipamento" class="nav-link w-full text-left px-3.5 py-2.5 rounded-[6px] text-[14px] transition-colors flex items-center gap-2.5">
                     ⚡ Adicionar Equipamento
@@ -114,106 +122,472 @@
             </div>
         </div>
 
-        <div id="aba-usuario" class="space-y-6 hidden max-w-xl">
+        <div id="aba-usuario" class="space-y-6 hidden">
             <div class="border-b border-[#eceae4] pb-4">
-                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Adicionar Usuário</h2>
-                <p class="text-[14px] text-[#5f5f5d]">Área restrita ao Administrador.</p>
+                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Gerenciar Usuários</h2>
+                <p class="text-[14px] text-[#5f5f5d]">Área restrita ao Administrador, com cadastro, edição, exclusão e listagem de utilizadores.</p>
             </div>
-            <form onsubmit="cadastrarUsuarioApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome Completo</label>
-                    <input type="text" id="usr_nome" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: João Silva">
+            <div class="grid grid-cols-1 xl:grid-cols-[420px,1fr] gap-6 items-start">
+                <form id="usuario-form" onsubmit="cadastrarUsuarioApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
+                    <input type="hidden" id="usr_id">
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome Completo</label>
+                        <input type="text" id="usr_nome" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: João Silva">
+                    </div>
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">E-mail</label>
+                        <input type="email" id="usr_email" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="joao@empresa.com">
+                    </div>
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Palavra-passe</label>
+                        <input type="password" id="usr_senha" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                        <p id="usr_senha_hint" class="mt-1 text-[12px] text-[#5f5f5d]">Obrigatória para novos utilizadores.</p>
+                    </div>
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa</label>
+                        <select id="usr_empresa_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                            <option value="">Selecione uma empresa</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2 pt-2">
+                        <input type="checkbox" id="usr_is_admin" class="rounded border-[#eceae4]">
+                        <label for="usr_is_admin" class="text-[13px] font-medium text-[#1c1c1c]">Conceder privilégios de Administrador</label>
+                    </div>
+                    <div class="flex gap-3">
+                        <button id="usuario-submit" type="submit" class="flex-1 py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Cadastrar Usuário</button>
+                        <button type="button" onclick="limparFormularioUsuario()" class="px-4 py-2.5 border border-[#d8d3c8] rounded-[6px] text-[14px] font-medium">Limpar</button>
+                    </div>
+                </form>
+
+                <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] space-y-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-[18px] font-semibold text-[#1c1c1c]">Usuários cadastrados</h3>
+                            <p class="text-[13px] text-[#5f5f5d]">Lista com nome, e-mail, empresa e ações.</p>
+                        </div>
+                        <button type="button" onclick="carregarUsuarios()" class="px-4 py-2 border border-[#d8d3c8] rounded-[6px] text-[13px] font-medium bg-white/50">Atualizar</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-left text-[13px]">
+                            <thead>
+                                <tr class="border-b border-[#eceae4] text-[#5f5f5d] uppercase text-[11px]">
+                                    <th class="py-3 pr-4">Nome</th>
+                                    <th class="py-3 pr-4">E-mail</th>
+                                    <th class="py-3 pr-4">Empresa</th>
+                                    <th class="py-3">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usuarios-tbody">
+                                <tr>
+                                    <td colspan="4" class="py-4 text-[#5f5f5d]">A carregar utilizadores...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">E-mail</label>
-                    <input type="email" id="usr_email" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="joao@empresa.com">
-                </div>
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Palavra-passe</label>
-                    <input type="password" id="usr_senha" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
-                </div>
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa ID</label>
-                    <input type="number" id="usr_empresa_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 1">
-                </div>
-                <div class="flex items-center gap-2 pt-2">
-                    <input type="checkbox" id="usr_is_admin" class="rounded border-[#eceae4]">
-                    <label for="usr_is_admin" class="text-[13px] font-medium text-[#1c1c1c]">Conceder privilégios de Administrador</label>
-                </div>
-                <button type="submit" class="w-full py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Cadastrar Usuário</button>
-            </form>
+            </div>
         </div>
 
-        <div id="aba-empresa" class="space-y-6 hidden max-w-xl">
+        <div id="aba-empresa" class="space-y-6 hidden">
             <div class="border-b border-[#eceae4] pb-4">
-                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Cadastrar Empresa</h2>
-                <p class="text-[14px] text-[#5f5f5d]">Área restrita ao Administrador.</p>
+                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Gerenciar Empresas</h2>
+                <p class="text-[14px] text-[#5f5f5d]">Cadastre, edite e exclua empresas com a mesma padronização das demais telas.</p>
             </div>
-            <form onsubmit="cadastrarEmpresaApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa ID</label>
-                    <input type="number" id="emp_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 1">
-                </div>
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome da Empresa</label>
-                    <input type="text" id="emp_nome" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Rancho Santa Luzia">
-                </div>
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Endereço</label>
-                    <input type="text" id="emp_end" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Rodovia SP-340">
-                </div>
-                <button type="submit" class="w-full py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Salvar Empresa no Aiven</button>
-            </form>
-        </div>
-
-        <div id="aba-setor" class="space-y-6 hidden max-w-xl">
-            <div class="border-b border-[#eceae4] pb-4">
-                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Adicionar Setor</h2>
-                <p class="text-[14px] text-[#5f5f5d]">Adicione novos setores à unidade.</p>
-            </div>
-            <form onsubmit="cadastrarSetorApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa ID</label>
-                    <input type="number" id="setor_empresa_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 1">
-                </div>
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Setor ID</label>
-                    <input type="number" id="setor_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 10">
-                </div>
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome do Setor</label>
-                    <input type="text" id="setor_name" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Câmara Fria">
-                </div>
-                <button type="submit" class="w-full py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Salvar Setor</button>
-            </form>
-        </div>
-
-        <div id="aba-equipamento" class="space-y-6 hidden max-w-xl">
-            <div class="border-b border-[#eceae4] pb-4">
-                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Adicionar Equipamento</h2>
-                <p class="text-[14px] text-[#5f5f5d]">Vincule hardwares ou sensores da unidade.</p>
-            </div>
-            <form onsubmit="cadastrarEquipamentoApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
-                <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 xl:grid-cols-[420px,1fr] gap-6 items-start">
+                <form id="empresa-form" onsubmit="cadastrarEmpresaApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
                     <div>
                         <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa ID</label>
-                        <input type="number" id="eq_empresa_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 1">
+                        <input type="number" id="emp_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 1">
+                    </div>
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome da Empresa</label>
+                        <input type="text" id="emp_nome" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Rancho Santa Luzia">
+                    </div>
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Endereço</label>
+                        <input type="text" id="emp_end" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Rodovia SP-340">
+                    </div>
+                    <div class="flex gap-3">
+                        <button id="empresa-submit" type="submit" class="flex-1 py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Salvar Empresa</button>
+                        <button type="button" onclick="limparFormularioEmpresa()" class="px-4 py-2.5 border border-[#d8d3c8] rounded-[6px] text-[14px] font-medium">Limpar</button>
+                    </div>
+                </form>
+
+                <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] space-y-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-[18px] font-semibold text-[#1c1c1c]">Empresas cadastradas</h3>
+                            <p class="text-[13px] text-[#5f5f5d]">Lista com código, nome, endereço e ações.</p>
+                        </div>
+                        <button type="button" onclick="carregarEmpresas()" class="px-4 py-2 border border-[#d8d3c8] rounded-[6px] text-[13px] font-medium bg-white/50">Atualizar</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-[13px] text-left min-w-[620px]">
+                            <thead>
+                                <tr class="border-b border-[#eceae4] text-[#5f5f5d] uppercase text-[11px] tracking-wide">
+                                    <th class="pb-3 pr-4">Código</th>
+                                    <th class="pb-3 pr-4">Nome</th>
+                                    <th class="pb-3 pr-4">Endereço</th>
+                                    <th class="pb-3">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="empresas-tbody">
+                                <tr>
+                                    <td colspan="4" class="py-4 text-[#5f5f5d]">A carregar empresas...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="aba-setor" class="space-y-6 hidden">
+            <div class="border-b border-[#eceae4] pb-4">
+                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Gerenciar Setores</h2>
+                <p class="text-[14px] text-[#5f5f5d]">Use o nome da empresa no vínculo e mantenha a listagem padronizada.</p>
+            </div>
+            <div class="grid grid-cols-1 xl:grid-cols-[420px,1fr] gap-6 items-start">
+                <form id="setor-form" onsubmit="cadastrarSetorApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa</label>
+                        <select id="setor_empresa_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                            <option value="">Selecione uma empresa</option>
+                        </select>
                     </div>
                     <div>
                         <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Setor ID</label>
-                        <input type="number" id="eq_setor_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 10">
+                        <input type="number" id="setor_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 10">
+                    </div>
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome do Setor</label>
+                        <input type="text" id="setor_name" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Câmara Fria">
+                    </div>
+                    <div class="flex gap-3">
+                        <button id="setor-submit" type="submit" class="flex-1 py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Salvar Setor</button>
+                        <button type="button" onclick="limparFormularioSetor()" class="px-4 py-2.5 border border-[#d8d3c8] rounded-[6px] text-[14px] font-medium">Limpar</button>
+                    </div>
+                </form>
+
+                <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] space-y-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-[18px] font-semibold text-[#1c1c1c]">Setores cadastrados</h3>
+                            <p class="text-[13px] text-[#5f5f5d]">Lista com empresa, código, nome e ações.</p>
+                        </div>
+                        <button type="button" onclick="carregarSetores()" class="px-4 py-2 border border-[#d8d3c8] rounded-[6px] text-[13px] font-medium bg-white/50">Atualizar</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-[13px] text-left min-w-[620px]">
+                            <thead>
+                                <tr class="border-b border-[#eceae4] text-[#5f5f5d] uppercase text-[11px] tracking-wide">
+                                    <th class="pb-3 pr-4">Empresa</th>
+                                    <th class="pb-3 pr-4">Setor ID</th>
+                                    <th class="pb-3 pr-4">Nome</th>
+                                    <th class="pb-3">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="setores-tbody">
+                                <tr>
+                                    <td colspan="4" class="py-4 text-[#5f5f5d]">A carregar setores...</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Equipamento ID</label>
-                    <input type="number" id="eq_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 101">
+            </div>
+        </div>
+
+        <div id="aba-ambiente" class="space-y-6 hidden">
+            <div class="border-b border-[#eceae4] pb-4">
+                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Gerenciar Ambientes</h2>
+                <p class="text-[14px] text-[#5f5f5d]">Cadastre os ambientes por empresa e setor, definindo as faixas ideais e tolerâncias.</p>
+            </div>
+            <div class="grid grid-cols-1 xl:grid-cols-[460px,1fr] gap-6 items-start">
+                <form id="ambiente-form" onsubmit="cadastrarAmbienteApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
+                    <input type="hidden" id="amb_id">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa</label>
+                            <select id="amb_empresa_id" onchange="aoAlterarEmpresaAmbiente()" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                                <option value="">Selecione uma empresa</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Setor</label>
+                            <select id="amb_setor_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                                <option value="">Selecione um setor</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome</label>
+                        <input type="text" id="amb_nome" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Câmara Fria 01">
+                    </div>
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Descrição</label>
+                        <input type="text" id="amb_descricao" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Ambiente dedicado ao armazenamento refrigerado">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Temp. mínima ideal</label>
+                            <input type="number" step="0.1" id="amb_temp_min" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                        </div>
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Temp. máxima ideal</label>
+                            <input type="number" step="0.1" id="amb_temp_max" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Umidade mínima ideal</label>
+                            <input type="number" step="0.1" id="amb_umid_min" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                        </div>
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Umidade máxima ideal</label>
+                            <input type="number" step="0.1" id="amb_umid_max" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Tolerância de temperatura</label>
+                            <input type="number" step="0.1" id="amb_temp_tol" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                        </div>
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Tolerância de umidade</label>
+                            <input type="number" step="0.1" id="amb_umid_tol" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <button id="ambiente-submit" type="submit" class="flex-1 py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Salvar Ambiente</button>
+                        <button type="button" onclick="limparFormularioAmbiente()" class="px-4 py-2.5 border border-[#d8d3c8] rounded-[6px] text-[14px] font-medium">Limpar</button>
+                    </div>
+                </form>
+
+                <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] space-y-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-[18px] font-semibold text-[#1c1c1c]">Ambientes cadastrados</h3>
+                            <p class="text-[13px] text-[#5f5f5d]">Lista com os mesmos campos de configuração visíveis no formulário.</p>
+                        </div>
+                        <button type="button" onclick="carregarAmbientes()" class="px-4 py-2 border border-[#d8d3c8] rounded-[6px] text-[13px] font-medium bg-white/50">Atualizar</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-[13px] text-left min-w-[1220px]">
+                            <thead>
+                                <tr class="border-b border-[#eceae4] text-[#5f5f5d] uppercase text-[11px] tracking-wide">
+                                    <th class="pb-3 pr-4">Empresa</th>
+                                    <th class="pb-3 pr-4">Setor</th>
+                                    <th class="pb-3 pr-4">Nome</th>
+                                    <th class="pb-3 pr-4">Descrição</th>
+                                    <th class="pb-3 pr-4">Temp. mín.</th>
+                                    <th class="pb-3 pr-4">Temp. máx.</th>
+                                    <th class="pb-3 pr-4">Umid. mín.</th>
+                                    <th class="pb-3 pr-4">Umid. máx.</th>
+                                    <th class="pb-3 pr-4">Tol. temp.</th>
+                                    <th class="pb-3 pr-4">Tol. umid.</th>
+                                    <th class="pb-3">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ambientes-tbody">
+                                <tr>
+                                    <td colspan="11" class="py-4 text-[#5f5f5d]">A carregar ambientes...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome do Equipamento</label>
-                    <input type="text" id="eq_name" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Sensor DHT22">
+            </div>
+        </div>
+
+        <div id="aba-dispositivo" class="space-y-6 hidden">
+            <div class="border-b border-[#eceae4] pb-4">
+                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Gerenciar Dispositivos</h2>
+                <p class="text-[14px] text-[#5f5f5d]">Os campos alimentados por telemetria MQTT aparecem bloqueados para edição manual.</p>
+            </div>
+            <div class="grid grid-cols-1 xl:grid-cols-[500px,1fr] gap-6 items-start">
+                <form id="dispositivo-form" onsubmit="cadastrarDispositivoApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
+                    <input type="hidden" id="disp_id">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa</label>
+                            <select id="disp_empresa_id" onchange="aoAlterarEmpresaDispositivo()" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                                <option value="">Selecione uma empresa</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Ambiente</label>
+                            <select id="disp_ambiente_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                                <option value="">Selecione um ambiente</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Device ID</label>
+                            <input type="text" id="disp_device_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: esp32-a8032a1e7214">
+                        </div>
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome</label>
+                            <input type="text" id="disp_nome" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: ESP32 Câmara Fria 01">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Modelo da placa</label>
+                            <input type="text" id="disp_modelo_placa" value="ESP32" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                        </div>
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Sensor</label>
+                            <select id="disp_sensor" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                                <option value="DHT11">DHT11</option>
+                                <option value="DHT22">DHT22</option>
+                                <option value="SHT31">SHT31</option>
+                                <option value="OUTRO">OUTRO</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Intervalo leitura (s)</label>
+                            <input type="number" id="disp_intervalo" min="2" max="3600" value="30" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                        </div>
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Offline após (s)</label>
+                            <input type="number" id="disp_offline_apos" min="10" max="86400" value="120" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                        </div>
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Limite LED</label>
+                            <input type="number" step="0.1" id="disp_limite_led" class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 pt-1">
+                        <input type="checkbox" id="disp_em_manutencao" class="rounded border-[#eceae4]">
+                        <label for="disp_em_manutencao" class="text-[13px] font-medium text-[#1c1c1c]">Em manutenção</label>
+                    </div>
+                    <div class="border border-dashed border-[#d8d3c8] rounded-[10px] p-4 space-y-3 bg-white/30">
+                        <div>
+                            <h4 class="text-[13px] font-semibold text-[#1c1c1c]">Campos preenchidos via MQTT</h4>
+                            <p class="text-[12px] text-[#5f5f5d]">Esses dados são somente leitura e refletem o último estado enviado pelo dispositivo.</p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <input type="text" id="disp_status_conexao" disabled class="w-full px-3 py-2 bg-[#eceae4] border border-[#d8d3c8] rounded-[6px] text-[13px]" placeholder="Status da conexão">
+                            <input type="text" id="disp_ultimo_contato" disabled class="w-full px-3 py-2 bg-[#eceae4] border border-[#d8d3c8] rounded-[6px] text-[13px]" placeholder="Último contato">
+                            <input type="text" id="disp_ultima_leitura" disabled class="w-full px-3 py-2 bg-[#eceae4] border border-[#d8d3c8] rounded-[6px] text-[13px]" placeholder="Última leitura">
+                            <input type="text" id="disp_ultima_temperatura" disabled class="w-full px-3 py-2 bg-[#eceae4] border border-[#d8d3c8] rounded-[6px] text-[13px]" placeholder="Última temperatura">
+                            <input type="text" id="disp_ultima_umidade" disabled class="w-full px-3 py-2 bg-[#eceae4] border border-[#d8d3c8] rounded-[6px] text-[13px]" placeholder="Última umidade">
+                            <input type="text" id="disp_led_aceso" disabled class="w-full px-3 py-2 bg-[#eceae4] border border-[#d8d3c8] rounded-[6px] text-[13px]" placeholder="LED aceso">
+                            <input type="text" id="disp_controle_recebido_em" disabled class="w-full px-3 py-2 bg-[#eceae4] border border-[#d8d3c8] rounded-[6px] text-[13px]" placeholder="Controle recebido em">
+                            <input type="text" id="disp_controle_comando_id" disabled class="w-full px-3 py-2 bg-[#eceae4] border border-[#d8d3c8] rounded-[6px] text-[13px]" placeholder="Comando de controle">
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <button id="dispositivo-submit" type="submit" class="flex-1 py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Salvar Dispositivo</button>
+                        <button type="button" onclick="limparFormularioDispositivo()" class="px-4 py-2.5 border border-[#d8d3c8] rounded-[6px] text-[14px] font-medium">Limpar</button>
+                    </div>
+                </form>
+
+                <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] space-y-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-[18px] font-semibold text-[#1c1c1c]">Dispositivos cadastrados</h3>
+                            <p class="text-[13px] text-[#5f5f5d]">Lista com os principais campos de cadastro e os indicadores lidos por MQTT.</p>
+                        </div>
+                        <button type="button" onclick="carregarDispositivos()" class="px-4 py-2 border border-[#d8d3c8] rounded-[6px] text-[13px] font-medium bg-white/50">Atualizar</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-[13px] text-left min-w-[1280px]">
+                            <thead>
+                                <tr class="border-b border-[#eceae4] text-[#5f5f5d] uppercase text-[11px] tracking-wide">
+                                    <th class="pb-3 pr-4">Empresa</th>
+                                    <th class="pb-3 pr-4">Ambiente</th>
+                                    <th class="pb-3 pr-4">Device ID</th>
+                                    <th class="pb-3 pr-4">Nome</th>
+                                    <th class="pb-3 pr-4">Modelo</th>
+                                    <th class="pb-3 pr-4">Sensor</th>
+                                    <th class="pb-3 pr-4">Intervalo</th>
+                                    <th class="pb-3 pr-4">Offline após</th>
+                                    <th class="pb-3 pr-4">Status</th>
+                                    <th class="pb-3 pr-4">Última temp.</th>
+                                    <th class="pb-3 pr-4">Última umid.</th>
+                                    <th class="pb-3">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dispositivos-tbody">
+                                <tr>
+                                    <td colspan="12" class="py-4 text-[#5f5f5d]">A carregar dispositivos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <button type="submit" class="w-full py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Salvar Equipamento</button>
-            </form>
+            </div>
+        </div>
+
+        <div id="aba-equipamento" class="space-y-6 hidden">
+            <div class="border-b border-[#eceae4] pb-4">
+                <h2 class="text-[28px] font-bold text-[#1c1c1c]">Gerenciar Equipamentos</h2>
+                <p class="text-[14px] text-[#5f5f5d]">Selecione empresa e setor pelos nomes e mantenha a listagem padronizada.</p>
+            </div>
+            <div class="grid grid-cols-1 xl:grid-cols-[420px,1fr] gap-6 items-start">
+                <form id="equipamento-form" onsubmit="cadastrarEquipamentoApi(event)" class="space-y-4 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px]">
+                    <input type="hidden" id="eq_internal_id">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Empresa</label>
+                            <select id="eq_empresa_id" onchange="aoAlterarEmpresaEquipamento()" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                                <option value="">Selecione uma empresa</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Setor</label>
+                            <select id="eq_setor_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                                <option value="">Selecione um setor</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Equipamento ID</label>
+                        <input type="number" id="eq_id" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: 101">
+                    </div>
+                    <div>
+                        <label class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Nome do Equipamento</label>
+                        <input type="text" id="eq_name" required class="w-full px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]" placeholder="Ex: Sensor DHT22">
+                    </div>
+                    <div class="flex gap-3">
+                        <button id="equipamento-submit" type="submit" class="flex-1 py-2.5 btn-lovable font-medium text-[14px] rounded-[6px]">Salvar Equipamento</button>
+                        <button type="button" onclick="limparFormularioEquipamento()" class="px-4 py-2.5 border border-[#d8d3c8] rounded-[6px] text-[14px] font-medium">Limpar</button>
+                    </div>
+                </form>
+
+                <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] space-y-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-[18px] font-semibold text-[#1c1c1c]">Equipamentos cadastrados</h3>
+                            <p class="text-[13px] text-[#5f5f5d]">Lista com empresa, setor, código, nome e ações.</p>
+                        </div>
+                        <button type="button" onclick="carregarEquipamentos()" class="px-4 py-2 border border-[#d8d3c8] rounded-[6px] text-[13px] font-medium bg-white/50">Atualizar</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-[13px] text-left min-w-[760px]">
+                            <thead>
+                                <tr class="border-b border-[#eceae4] text-[#5f5f5d] uppercase text-[11px] tracking-wide">
+                                    <th class="pb-3 pr-4">Empresa</th>
+                                    <th class="pb-3 pr-4">Setor</th>
+                                    <th class="pb-3 pr-4">Equipamento ID</th>
+                                    <th class="pb-3 pr-4">Nome</th>
+                                    <th class="pb-3">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="equipamentos-tbody">
+                                <tr>
+                                    <td colspan="5" class="py-4 text-[#5f5f5d]">A carregar equipamentos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
 
     </main>
@@ -221,6 +595,12 @@
     <script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
     <script>
         let usuarioAtual = null;
+        let usuariosCache = [];
+        let empresasCache = [];
+        let setoresCache = [];
+        let ambientesCache = [];
+        let dispositivosCache = [];
+        let equipamentosCache = [];
 
         async function validarSessaoEInicializar() {
             try {
@@ -239,13 +619,36 @@
                 usuarioAtual = data.usuario;
                 document.getElementById('usuario-logado-info').innerText = `Usuário: ${usuarioAtual.user_nome || 'Conectado'}`;
 
+                await carregarEmpresasBase({
+                    usuario: usuarioAtual?.empresa_id || '',
+                    setor: usuarioAtual?.empresa_id || '',
+                    equipamento: usuarioAtual?.empresa_id || ''
+                });
+                await carregarSetoresBase({
+                    empresaAmbiente: usuarioAtual?.empresa_id || '',
+                    setorAmbiente: '',
+                    empresaEquipamento: usuarioAtual?.empresa_id || '',
+                    setorEquipamento: ''
+                });
+                await carregarAmbientesBase({
+                    empresaDispositivo: usuarioAtual?.empresa_id || '',
+                    ambienteDispositivo: ''
+                });
+
                 if (usuarioAtual.isAdmin) {
                     const linkUsr = document.getElementById('link-usuario');
                     const linkEmp = document.getElementById('link-empresa');
                     if (linkUsr) { linkUsr.classList.remove('hidden'); linkUsr.classList.add('flex'); }
                     if (linkEmp) { linkEmp.classList.remove('hidden'); linkEmp.classList.add('flex'); }
+                    limparFormularioUsuario();
+                    carregarUsuarios();
                 }
 
+                limparFormularioEmpresa();
+                limparFormularioSetor();
+                limparFormularioAmbiente();
+                limparFormularioDispositivo();
+                limparFormularioEquipamento();
                 carregarEmpresaLogada(usuarioAtual.empresa_id);
             } catch (err) {
                 console.error("Erro ao validar sessão:", err);
@@ -256,7 +659,7 @@
         validarSessaoEInicializar();
 
         function mudarAba(aba) {
-            const abas = ['monitor', 'usuario', 'empresa', 'setor', 'equipamento'];
+            const abas = ['monitor', 'usuario', 'empresa', 'setor', 'ambiente', 'dispositivo', 'equipamento'];
             abas.forEach(a => {
                 const elAba = document.getElementById(`aba-${a}`);
                 const elLink = document.getElementById(`link-${a}`);
@@ -268,6 +671,13 @@
             const linkAtivo = document.getElementById(`link-${aba}`);
             if (abaAtiva) abaAtiva.classList.remove('hidden');
             if (linkAtivo) linkAtivo.classList.add('active');
+
+            if (aba === 'usuario' && usuarioAtual?.isAdmin) carregarUsuarios();
+            if (aba === 'empresa' && usuarioAtual?.isAdmin) carregarEmpresas();
+            if (aba === 'setor') carregarSetores();
+            if (aba === 'ambiente') carregarAmbientes();
+            if (aba === 'dispositivo') carregarDispositivos();
+            if (aba === 'equipamento') carregarEquipamentos();
         }
 
         async function carregarEmpresaLogada(empresaId) {
@@ -280,6 +690,192 @@
             } catch (e) {
                 document.getElementById('label-empresa').innerText = `Unidade ID: ${empresaId || '--'}`;
             }
+        }
+
+        function renderEmpresasSelect(selectId, empresaSelecionada = '', placeholder = 'Selecione uma empresa') {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+
+            const valorSelecionado = empresaSelecionada !== '' && empresaSelecionada !== null && empresaSelecionada !== undefined
+                ? String(empresaSelecionada)
+                : '';
+
+            const options = [`<option value="">${placeholder}</option>`];
+
+            for (const empresa of empresasCache) {
+                options.push(`
+                    <option value="${empresa.empresa_id}" ${String(empresa.empresa_id) === valorSelecionado ? 'selected' : ''}>
+                        ${empresa.nome_empresa}
+                    </option>
+                `);
+            }
+
+            select.innerHTML = options.join('');
+            select.value = valorSelecionado;
+        }
+
+        function renderEmpresasSelectUsuario(empresaSelecionada = '') {
+            renderEmpresasSelect('usr_empresa_id', empresaSelecionada);
+        }
+
+        function renderEmpresasSelectSetor(empresaSelecionada = '') {
+            renderEmpresasSelect('setor_empresa_id', empresaSelecionada);
+        }
+
+        function renderEmpresasSelectAmbiente(empresaSelecionada = '') {
+            renderEmpresasSelect('amb_empresa_id', empresaSelecionada);
+        }
+
+        function renderEmpresasSelectDispositivo(empresaSelecionada = '') {
+            renderEmpresasSelect('disp_empresa_id', empresaSelecionada);
+        }
+
+        function renderEmpresasSelectEquipamento(empresaSelecionada = '') {
+            renderEmpresasSelect('eq_empresa_id', empresaSelecionada);
+        }
+
+        function renderSetoresSelect(selectId, setorSelecionado = '', empresaSelecionada = null) {
+            const selectEmpresa = {
+                'amb_setor_id': document.getElementById('amb_empresa_id'),
+                'eq_setor_id': document.getElementById('eq_empresa_id')
+            }[selectId];
+            const selectSetor = document.getElementById(selectId);
+            if (!selectSetor) return;
+
+            if (empresaSelecionada !== null && empresaSelecionada !== undefined && selectEmpresa) {
+                selectEmpresa.value = empresaSelecionada === '' ? '' : String(empresaSelecionada);
+            }
+
+            const empresaId = String(empresaSelecionada ?? selectEmpresa?.value ?? '');
+            const valorSelecionado = setorSelecionado !== '' && setorSelecionado !== null && setorSelecionado !== undefined
+                ? String(setorSelecionado)
+                : '';
+
+            const setoresFiltrados = setoresCache.filter((setor) => (
+                !empresaId || String(setor.empresa_id) === empresaId
+            ));
+
+            const options = [`<option value="">Selecione um setor</option>`];
+            for (const setor of setoresFiltrados) {
+                options.push(`
+                    <option value="${setor.setor_id}" ${String(setor.setor_id) === valorSelecionado ? 'selected' : ''}>
+                        ${setor.setor_name}
+                    </option>
+                `);
+            }
+
+            selectSetor.innerHTML = options.join('');
+            selectSetor.value = valorSelecionado;
+        }
+
+        function renderSetoresSelectAmbiente(setorSelecionado = '', empresaSelecionada = null) {
+            renderSetoresSelect('amb_setor_id', setorSelecionado, empresaSelecionada);
+        }
+
+        function renderSetoresSelectEquipamento(setorSelecionado = '', empresaSelecionada = null) {
+            renderSetoresSelect('eq_setor_id', setorSelecionado, empresaSelecionada);
+        }
+
+        function renderAmbientesSelectDispositivo(ambienteSelecionado = '', empresaSelecionada = null) {
+            const selectEmpresa = document.getElementById('disp_empresa_id');
+            const selectAmbiente = document.getElementById('disp_ambiente_id');
+            if (!selectAmbiente) return;
+
+            if (empresaSelecionada !== null && empresaSelecionada !== undefined && selectEmpresa) {
+                selectEmpresa.value = empresaSelecionada === '' ? '' : String(empresaSelecionada);
+            }
+
+            const empresaId = String(empresaSelecionada ?? selectEmpresa?.value ?? '');
+            const valorSelecionado = ambienteSelecionado !== '' && ambienteSelecionado !== null && ambienteSelecionado !== undefined
+                ? String(ambienteSelecionado)
+                : '';
+
+            const ambientesFiltrados = ambientesCache.filter((ambiente) => (
+                !empresaId || String(ambiente.empresa_id) === empresaId
+            ));
+
+            const options = [`<option value="">Selecione um ambiente</option>`];
+            for (const ambiente of ambientesFiltrados) {
+                const label = ambiente.nome_setor
+                    ? `${ambiente.nome_setor} - ${ambiente.nome}`
+                    : ambiente.nome;
+                options.push(`
+                    <option value="${ambiente.id}" ${String(ambiente.id) === valorSelecionado ? 'selected' : ''}>
+                        ${label}
+                    </option>
+                `);
+            }
+
+            selectAmbiente.innerHTML = options.join('');
+            selectAmbiente.value = valorSelecionado;
+        }
+
+        async function carregarEmpresasBase(selecoes = {}) {
+            try {
+                const res = await fetch('/api/empresas');
+                if (!res.ok) throw new Error();
+                empresasCache = await res.json();
+                renderEmpresasSelectUsuario(selecoes.usuario ?? document.getElementById('usr_empresa_id')?.value ?? usuarioAtual?.empresa_id ?? '');
+                renderEmpresasSelectSetor(selecoes.setor ?? document.getElementById('setor_empresa_id')?.value ?? usuarioAtual?.empresa_id ?? '');
+                renderEmpresasSelectAmbiente(selecoes.ambiente ?? document.getElementById('amb_empresa_id')?.value ?? usuarioAtual?.empresa_id ?? '');
+                renderEmpresasSelectDispositivo(selecoes.dispositivo ?? document.getElementById('disp_empresa_id')?.value ?? usuarioAtual?.empresa_id ?? '');
+                renderEmpresasSelectEquipamento(selecoes.equipamento ?? document.getElementById('eq_empresa_id')?.value ?? usuarioAtual?.empresa_id ?? '');
+            } catch (err) {
+                empresasCache = [];
+                renderEmpresasSelectUsuario(selecoes.usuario ?? '');
+                renderEmpresasSelectSetor(selecoes.setor ?? '');
+                renderEmpresasSelectAmbiente(selecoes.ambiente ?? '');
+                renderEmpresasSelectDispositivo(selecoes.dispositivo ?? '');
+                renderEmpresasSelectEquipamento(selecoes.equipamento ?? '');
+            }
+        }
+
+        async function carregarSetoresBase(selecoes = {}) {
+            try {
+                const res = await fetch('/api/setores');
+                const json = await res.json();
+                if (!res.ok) throw new Error(json.error || 'Erro ao listar setores.');
+                setoresCache = Array.isArray(json.data) ? json.data : [];
+            } catch (err) {
+                setoresCache = [];
+            }
+
+            renderSetoresSelectAmbiente(
+                selecoes.setorAmbiente ?? document.getElementById('amb_setor_id')?.value ?? '',
+                selecoes.empresaAmbiente ?? document.getElementById('amb_empresa_id')?.value ?? usuarioAtual?.empresa_id ?? ''
+            );
+            renderSetoresSelectEquipamento(
+                selecoes.setorEquipamento ?? document.getElementById('eq_setor_id')?.value ?? '',
+                selecoes.empresaEquipamento ?? document.getElementById('eq_empresa_id')?.value ?? usuarioAtual?.empresa_id ?? ''
+            );
+        }
+
+        async function carregarAmbientesBase(selecoes = {}) {
+            try {
+                const res = await fetch('/api/ambientes');
+                const json = await res.json();
+                if (!res.ok) throw new Error(json.error || 'Erro ao listar ambientes.');
+                ambientesCache = Array.isArray(json.data) ? json.data : [];
+            } catch (err) {
+                ambientesCache = [];
+            }
+
+            renderAmbientesSelectDispositivo(
+                selecoes.ambienteDispositivo ?? document.getElementById('disp_ambiente_id')?.value ?? '',
+                selecoes.empresaDispositivo ?? document.getElementById('disp_empresa_id')?.value ?? usuarioAtual?.empresa_id ?? ''
+            );
+        }
+
+        function aoAlterarEmpresaAmbiente() {
+            renderSetoresSelectAmbiente('');
+        }
+
+        function aoAlterarEmpresaDispositivo() {
+            renderAmbientesSelectDispositivo('');
+        }
+
+        function aoAlterarEmpresaEquipamento() {
+            renderSetoresSelectEquipamento('');
         }
 
         async function sair() {
@@ -385,8 +981,130 @@
             } catch (err) {}
         }
 
+        function limparFormularioUsuario() {
+            document.getElementById('usr_id').value = '';
+            document.getElementById('usr_nome').value = '';
+            document.getElementById('usr_email').value = '';
+            document.getElementById('usr_senha').value = '';
+            renderEmpresasSelectUsuario(usuarioAtual?.empresa_id || '');
+            document.getElementById('usr_is_admin').checked = false;
+            document.getElementById('usr_senha').required = true;
+            document.getElementById('usr_senha_hint').textContent = 'Obrigatória para novos utilizadores.';
+            document.getElementById('usuario-submit').textContent = 'Cadastrar Usuário';
+        }
+
+        function preencherFormularioUsuario(usuario) {
+            document.getElementById('usr_id').value = usuario.id;
+            document.getElementById('usr_nome').value = usuario.user_nome || '';
+            document.getElementById('usr_email').value = usuario.user_email || '';
+            document.getElementById('usr_senha').value = '';
+            renderEmpresasSelectUsuario(usuario.empresa_id || '');
+            document.getElementById('usr_is_admin').checked = Boolean(usuario.isAdmin);
+            document.getElementById('usr_senha').required = false;
+            document.getElementById('usr_senha_hint').textContent = 'Preencha apenas se quiser alterar a palavra-passe.';
+            document.getElementById('usuario-submit').textContent = 'Salvar Alterações';
+            mudarAba('usuario');
+        }
+
+        function renderUsuariosTabela() {
+            const tbody = document.getElementById('usuarios-tbody');
+            if (!tbody) return;
+
+            if (!usuariosCache.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-4 text-[#5f5f5d]">Nenhum utilizador cadastrado.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = usuariosCache.map((usuario) => `
+                <tr class="border-b border-[#eceae4] last:border-b-0">
+                    <td class="py-3 pr-4 font-medium text-[#1c1c1c]">${usuario.user_nome || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${usuario.user_email || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${usuario.nome_empresa || 'Sem empresa'}</td>
+                    <td class="py-3">
+                        <div class="flex gap-2">
+                            <button type="button" onclick="editarUsuario(${usuario.id})" class="px-3 py-1.5 border border-[#d8d3c8] rounded-[6px] bg-white/50">Editar</button>
+                            <button type="button" onclick="excluirUsuario(${usuario.id})" class="px-3 py-1.5 border border-red-200 text-red-700 rounded-[6px] bg-red-50">Excluir</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function carregarUsuarios() {
+            const tbody = document.getElementById('usuarios-tbody');
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-4 text-[#5f5f5d]">A carregar utilizadores...</td>
+                    </tr>
+                `;
+            }
+
+            try {
+                const res = await fetch('/api/usuarios');
+                const json = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao listar utilizadores.');
+                }
+
+                usuariosCache = Array.isArray(json.data) ? json.data : [];
+                renderUsuariosTabela();
+            } catch (err) {
+                if (tbody) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="py-4 text-red-700">Não foi possível carregar os utilizadores.</td>
+                        </tr>
+                    `;
+                }
+            }
+        }
+
+        function editarUsuario(userId) {
+            const usuario = usuariosCache.find((item) => Number(item.id) === Number(userId));
+            if (!usuario) {
+                alert('Utilizador não encontrado na lista.');
+                return;
+            }
+
+            preencherFormularioUsuario(usuario);
+        }
+
+        async function excluirUsuario(userId) {
+            const usuario = usuariosCache.find((item) => Number(item.id) === Number(userId));
+            if (!usuario) {
+                alert('Utilizador não encontrado na lista.');
+                return;
+            }
+
+            const confirmou = window.confirm(`Deseja realmente excluir o utilizador "${usuario.user_nome}"?`);
+            if (!confirmou) return;
+
+            try {
+                const res = await fetch(`/api/usuarios/${userId}`, { method: 'DELETE' });
+                const json = await res.json();
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao excluir utilizador.');
+                }
+
+                alert(json.message || 'Utilizador excluído com sucesso!');
+                if (Number(document.getElementById('usr_id').value) === Number(userId)) {
+                    limparFormularioUsuario();
+                }
+                await carregarUsuarios();
+            } catch (err) {
+                alert(err.message || 'Erro ao excluir utilizador.');
+            }
+        }
+
         async function cadastrarUsuarioApi(e) {
             e.preventDefault();
+            const userId = document.getElementById('usr_id').value;
             const dados = {
                 user_nome: document.getElementById('usr_nome').value,
                 user_email: document.getElementById('usr_email').value,
@@ -395,77 +1113,793 @@
                 isAdmin: document.getElementById('usr_is_admin').checked
             };
             try {
-                const res = await fetch('/api/usuarios', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados)
+                const res = await fetch(userId ? `/api/usuarios/${userId}` : '/api/usuarios', {
+                    method: userId ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dados)
                 });
                 const json = await res.json();
-                alert(json.message || "Utilizador cadastrado com sucesso!");
-                e.target.reset();
-                mudarAba('monitor');
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao salvar utilizador.');
+                }
+                alert(json.message || (userId ? "Utilizador atualizado com sucesso!" : "Utilizador cadastrado com sucesso!"));
+                limparFormularioUsuario();
+                await carregarUsuarios();
+                mudarAba('usuario');
             } catch (err) {
-                alert("Erro ao cadastrar utilizador.");
+                alert(err.message || "Erro ao cadastrar utilizador.");
+            }
+        }
+
+        function normalizarNumero(valor) {
+            const numero = parseInt(valor, 10);
+            return Number.isNaN(numero) ? null : numero;
+        }
+
+        function normalizarDecimal(valor) {
+            if (valor === null || valor === undefined || valor === '') return null;
+            const numero = parseFloat(valor);
+            return Number.isNaN(numero) ? null : numero;
+        }
+
+        function formatarCampoTabela(valor, sufixo = '') {
+            if (valor === null || valor === undefined || valor === '') return '-';
+            return `${valor}${sufixo}`;
+        }
+
+        function formatarCampoSomenteLeitura(valor, sufixo = '') {
+            if (valor === null || valor === undefined || valor === '') return '';
+            return `${valor}${sufixo}`;
+        }
+
+        function limparFormularioEmpresa() {
+            document.getElementById('emp_id').value = '';
+            document.getElementById('emp_nome').value = '';
+            document.getElementById('emp_end').value = '';
+            document.getElementById('emp_id').readOnly = false;
+            document.getElementById('empresa-submit').textContent = 'Salvar Empresa';
+        }
+
+        function preencherFormularioEmpresa(empresa) {
+            document.getElementById('emp_id').value = empresa.empresa_id || '';
+            document.getElementById('emp_nome').value = empresa.nome_empresa || '';
+            document.getElementById('emp_end').value = empresa.endereco_empresa || '';
+            document.getElementById('emp_id').readOnly = true;
+            document.getElementById('empresa-submit').textContent = 'Salvar Alterações';
+            mudarAba('empresa');
+        }
+
+        function renderEmpresasTabela() {
+            const tbody = document.getElementById('empresas-tbody');
+            if (!tbody) return;
+
+            if (!empresasCache.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-4 text-[#5f5f5d]">Nenhuma empresa cadastrada.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = empresasCache.map((empresa) => `
+                <tr class="border-b border-[#eceae4] last:border-b-0">
+                    <td class="py-3 pr-4 font-medium text-[#1c1c1c]">${empresa.empresa_id || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${empresa.nome_empresa || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${empresa.endereco_empresa || '-'}</td>
+                    <td class="py-3">
+                        <div class="flex gap-2">
+                            <button type="button" onclick="editarEmpresa(${empresa.empresa_id})" class="px-3 py-1.5 border border-[#d8d3c8] rounded-[6px] bg-white/50">Editar</button>
+                            <button type="button" onclick="excluirEmpresa(${empresa.empresa_id})" class="px-3 py-1.5 border border-red-200 text-red-700 rounded-[6px] bg-red-50">Excluir</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function carregarEmpresas() {
+            const tbody = document.getElementById('empresas-tbody');
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-4 text-[#5f5f5d]">A carregar empresas...</td>
+                    </tr>
+                `;
+            }
+
+            await carregarEmpresasBase();
+            renderEmpresasTabela();
+        }
+
+        function editarEmpresa(empresaId) {
+            const empresa = empresasCache.find((item) => Number(item.empresa_id) === Number(empresaId));
+            if (!empresa) {
+                alert('Empresa não encontrada na lista.');
+                return;
+            }
+
+            preencherFormularioEmpresa(empresa);
+        }
+
+        async function excluirEmpresa(empresaId) {
+            const empresa = empresasCache.find((item) => Number(item.empresa_id) === Number(empresaId));
+            if (!empresa) {
+                alert('Empresa não encontrada na lista.');
+                return;
+            }
+
+            if (!window.confirm(`Deseja realmente excluir a empresa "${empresa.nome_empresa}"?`)) return;
+
+            try {
+                const res = await fetch(`/api/empresas/${empresaId}`, { method: 'DELETE' });
+                const json = await res.json();
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao excluir empresa.');
+                }
+
+                alert(json.message || 'Empresa excluída com sucesso!');
+                if (Number(document.getElementById('emp_id').value) === Number(empresaId)) {
+                    limparFormularioEmpresa();
+                }
+                await carregarEmpresas();
+                await carregarSetores();
+                await carregarAmbientes();
+                await carregarDispositivos();
+                await carregarEquipamentos();
+                if (usuarioAtual) carregarEmpresaLogada(usuarioAtual.empresa_id);
+            } catch (err) {
+                alert(err.message || 'Erro ao excluir empresa.');
             }
         }
 
         async function cadastrarEmpresaApi(e) {
             e.preventDefault();
+            const empresaId = document.getElementById('emp_id').value;
+            const emEdicao = document.getElementById('emp_id').readOnly;
             const dados = {
-                empresa_id: parseInt(document.getElementById('emp_id').value),
+                empresa_id: normalizarNumero(empresaId),
                 nome_empresa: document.getElementById('emp_nome').value,
                 endereco_empresa: document.getElementById('emp_end').value
             };
             try {
-                const res = await fetch('/api/empresas', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados)
+                const res = await fetch(emEdicao ? `/api/empresas/${empresaId}` : '/api/empresas', {
+                    method: emEdicao ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dados)
                 });
                 const json = await res.json();
-                alert(json.message || "Empresa cadastrada com sucesso!");
-                e.target.reset();
-                mudarAba('monitor');
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao salvar empresa.');
+                }
+
+                alert(json.message || (emEdicao ? 'Empresa atualizada com sucesso!' : 'Empresa cadastrada com sucesso!'));
+                limparFormularioEmpresa();
+                await carregarEmpresas();
+                await carregarSetores();
+                await carregarAmbientes();
+                await carregarDispositivos();
+                await carregarEquipamentos();
                 if (usuarioAtual) carregarEmpresaLogada(usuarioAtual.empresa_id);
+                mudarAba('empresa');
             } catch (err) {
-                alert("Erro ao cadastrar empresa.");
+                alert(err.message || 'Erro ao salvar empresa.');
+            }
+        }
+
+        function limparFormularioSetor() {
+            renderEmpresasSelectSetor(usuarioAtual?.empresa_id || '');
+            document.getElementById('setor_id').value = '';
+            document.getElementById('setor_name').value = '';
+            document.getElementById('setor_id').readOnly = false;
+            document.getElementById('setor-submit').textContent = 'Salvar Setor';
+        }
+
+        function preencherFormularioSetor(setor) {
+            renderEmpresasSelectSetor(setor.empresa_id || '');
+            document.getElementById('setor_id').value = setor.setor_id || '';
+            document.getElementById('setor_name').value = setor.setor_name || '';
+            document.getElementById('setor_id').readOnly = true;
+            document.getElementById('setor-submit').textContent = 'Salvar Alterações';
+            mudarAba('setor');
+        }
+
+        function renderSetoresTabela() {
+            const tbody = document.getElementById('setores-tbody');
+            if (!tbody) return;
+
+            if (!setoresCache.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-4 text-[#5f5f5d]">Nenhum setor cadastrado.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = setoresCache.map((setor) => `
+                <tr class="border-b border-[#eceae4] last:border-b-0">
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${setor.nome_empresa || '-'}</td>
+                    <td class="py-3 pr-4 font-medium text-[#1c1c1c]">${setor.setor_id || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${setor.setor_name || '-'}</td>
+                    <td class="py-3">
+                        <div class="flex gap-2">
+                            <button type="button" onclick="editarSetor(${setor.id})" class="px-3 py-1.5 border border-[#d8d3c8] rounded-[6px] bg-white/50">Editar</button>
+                            <button type="button" onclick="excluirSetor(${setor.id})" class="px-3 py-1.5 border border-red-200 text-red-700 rounded-[6px] bg-red-50">Excluir</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function carregarSetores() {
+            const tbody = document.getElementById('setores-tbody');
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="py-4 text-[#5f5f5d]">A carregar setores...</td>
+                    </tr>
+                `;
+            }
+
+            await carregarSetoresBase();
+            renderSetoresTabela();
+        }
+
+        function editarSetor(setorId) {
+            const setor = setoresCache.find((item) => Number(item.id) === Number(setorId));
+            if (!setor) {
+                alert('Setor não encontrado na lista.');
+                return;
+            }
+
+            preencherFormularioSetor(setor);
+        }
+
+        async function excluirSetor(setorId) {
+            const setor = setoresCache.find((item) => Number(item.id) === Number(setorId));
+            if (!setor) {
+                alert('Setor não encontrado na lista.');
+                return;
+            }
+
+            if (!window.confirm(`Deseja realmente excluir o setor "${setor.setor_name}"?`)) return;
+
+            try {
+                const res = await fetch(`/api/setores/${setorId}`, { method: 'DELETE' });
+                const json = await res.json();
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao excluir setor.');
+                }
+
+                alert(json.message || 'Setor excluído com sucesso!');
+                if (Number(document.getElementById('setor_id').value) === Number(setor.setor_id)) {
+                    limparFormularioSetor();
+                }
+                await carregarSetores();
+                await carregarAmbientes();
+                await carregarDispositivos();
+                await carregarEquipamentos();
+            } catch (err) {
+                alert(err.message || 'Erro ao excluir setor.');
             }
         }
 
         async function cadastrarSetorApi(e) {
             e.preventDefault();
+            const setorId = document.getElementById('setor_id').value;
+            const emEdicao = document.getElementById('setor_id').readOnly;
             const dados = {
-                empresa_id: parseInt(document.getElementById('setor_empresa_id').value),
-                setor_id: parseInt(document.getElementById('setor_id').value),
+                empresa_id: normalizarNumero(document.getElementById('setor_empresa_id').value),
+                setor_id: normalizarNumero(setorId),
                 setor_name: document.getElementById('setor_name').value
             };
             try {
-                const res = await fetch('/api/setores', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados)
+                const res = await fetch(emEdicao ? `/api/setores/${setorId}` : '/api/setores', {
+                    method: emEdicao ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dados)
                 });
                 const json = await res.json();
-                alert(json.message || "Setor cadastrado com sucesso!");
-                e.target.reset();
-                mudarAba('monitor');
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao salvar setor.');
+                }
+
+                alert(json.message || (emEdicao ? 'Setor atualizado com sucesso!' : 'Setor cadastrado com sucesso!'));
+                limparFormularioSetor();
+                await carregarSetores();
+                await carregarAmbientes();
+                await carregarDispositivos();
+                await carregarEquipamentos();
+                mudarAba('setor');
             } catch (err) {
-                alert("Erro ao cadastrar setor.");
+                alert(err.message || 'Erro ao salvar setor.');
+            }
+        }
+
+        function limparFormularioAmbiente() {
+            document.getElementById('amb_id').value = '';
+            renderEmpresasSelectAmbiente(usuarioAtual?.empresa_id || '');
+            renderSetoresSelectAmbiente('', usuarioAtual?.empresa_id || '');
+            document.getElementById('amb_nome').value = '';
+            document.getElementById('amb_descricao').value = '';
+            document.getElementById('amb_temp_min').value = '';
+            document.getElementById('amb_temp_max').value = '';
+            document.getElementById('amb_umid_min').value = '';
+            document.getElementById('amb_umid_max').value = '';
+            document.getElementById('amb_temp_tol').value = '';
+            document.getElementById('amb_umid_tol').value = '';
+            document.getElementById('ambiente-submit').textContent = 'Salvar Ambiente';
+        }
+
+        function preencherFormularioAmbiente(ambiente) {
+            document.getElementById('amb_id').value = ambiente.id;
+            renderEmpresasSelectAmbiente(ambiente.empresa_id || '');
+            renderSetoresSelectAmbiente(ambiente.setor_id || '', ambiente.empresa_id || '');
+            document.getElementById('amb_nome').value = ambiente.nome || '';
+            document.getElementById('amb_descricao').value = ambiente.descricao || '';
+            document.getElementById('amb_temp_min').value = ambiente.temp_min_ideal ?? '';
+            document.getElementById('amb_temp_max').value = ambiente.temp_max_ideal ?? '';
+            document.getElementById('amb_umid_min').value = ambiente.umid_min_ideal ?? '';
+            document.getElementById('amb_umid_max').value = ambiente.umid_max_ideal ?? '';
+            document.getElementById('amb_temp_tol').value = ambiente.temp_tolerancia ?? '';
+            document.getElementById('amb_umid_tol').value = ambiente.umid_tolerancia ?? '';
+            document.getElementById('ambiente-submit').textContent = 'Salvar Alterações';
+            mudarAba('ambiente');
+        }
+
+        function renderAmbientesTabela() {
+            const tbody = document.getElementById('ambientes-tbody');
+            if (!tbody) return;
+
+            if (!ambientesCache.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" class="py-4 text-[#5f5f5d]">Nenhum ambiente cadastrado.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = ambientesCache.map((ambiente) => `
+                <tr class="border-b border-[#eceae4] last:border-b-0">
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${ambiente.nome_empresa || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${ambiente.nome_setor || '-'}</td>
+                    <td class="py-3 pr-4 font-medium text-[#1c1c1c]">${ambiente.nome || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${ambiente.descricao || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${formatarCampoTabela(ambiente.temp_min_ideal)}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${formatarCampoTabela(ambiente.temp_max_ideal)}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${formatarCampoTabela(ambiente.umid_min_ideal)}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${formatarCampoTabela(ambiente.umid_max_ideal)}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${formatarCampoTabela(ambiente.temp_tolerancia)}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${formatarCampoTabela(ambiente.umid_tolerancia)}</td>
+                    <td class="py-3">
+                        <div class="flex gap-2">
+                            <button type="button" onclick="editarAmbiente(${ambiente.id})" class="px-3 py-1.5 border border-[#d8d3c8] rounded-[6px] bg-white/50">Editar</button>
+                            <button type="button" onclick="excluirAmbiente(${ambiente.id})" class="px-3 py-1.5 border border-red-200 text-red-700 rounded-[6px] bg-red-50">Excluir</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function carregarAmbientes() {
+            const tbody = document.getElementById('ambientes-tbody');
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" class="py-4 text-[#5f5f5d]">A carregar ambientes...</td>
+                    </tr>
+                `;
+            }
+
+            await carregarAmbientesBase();
+            renderAmbientesTabela();
+        }
+
+        function editarAmbiente(ambienteId) {
+            const ambiente = ambientesCache.find((item) => Number(item.id) === Number(ambienteId));
+            if (!ambiente) {
+                alert('Ambiente não encontrado na lista.');
+                return;
+            }
+
+            preencherFormularioAmbiente(ambiente);
+        }
+
+        async function excluirAmbiente(ambienteId) {
+            const ambiente = ambientesCache.find((item) => Number(item.id) === Number(ambienteId));
+            if (!ambiente) {
+                alert('Ambiente não encontrado na lista.');
+                return;
+            }
+
+            if (!window.confirm(`Deseja realmente excluir o ambiente "${ambiente.nome}"?`)) return;
+
+            try {
+                const res = await fetch(`/api/ambientes/${ambienteId}`, { method: 'DELETE' });
+                const json = await res.json();
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao excluir ambiente.');
+                }
+
+                alert(json.message || 'Ambiente excluído com sucesso!');
+                if (Number(document.getElementById('amb_id').value) === Number(ambienteId)) {
+                    limparFormularioAmbiente();
+                }
+                await carregarAmbientes();
+                await carregarDispositivos();
+            } catch (err) {
+                alert(err.message || 'Erro ao excluir ambiente.');
+            }
+        }
+
+        async function cadastrarAmbienteApi(e) {
+            e.preventDefault();
+            const ambienteId = document.getElementById('amb_id').value;
+            const emEdicao = Boolean(ambienteId);
+            const dados = {
+                empresa_id: normalizarNumero(document.getElementById('amb_empresa_id').value),
+                setor_id: normalizarNumero(document.getElementById('amb_setor_id').value),
+                nome: document.getElementById('amb_nome').value,
+                descricao: document.getElementById('amb_descricao').value,
+                temp_min_ideal: normalizarDecimal(document.getElementById('amb_temp_min').value),
+                temp_max_ideal: normalizarDecimal(document.getElementById('amb_temp_max').value),
+                umid_min_ideal: normalizarDecimal(document.getElementById('amb_umid_min').value),
+                umid_max_ideal: normalizarDecimal(document.getElementById('amb_umid_max').value),
+                temp_tolerancia: normalizarDecimal(document.getElementById('amb_temp_tol').value),
+                umid_tolerancia: normalizarDecimal(document.getElementById('amb_umid_tol').value)
+            };
+
+            try {
+                const res = await fetch(emEdicao ? `/api/ambientes/${ambienteId}` : '/api/ambientes', {
+                    method: emEdicao ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dados)
+                });
+                const json = await res.json();
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao salvar ambiente.');
+                }
+
+                alert(json.message || (emEdicao ? 'Ambiente atualizado com sucesso!' : 'Ambiente cadastrado com sucesso!'));
+                limparFormularioAmbiente();
+                await carregarAmbientes();
+                await carregarDispositivos();
+                mudarAba('ambiente');
+            } catch (err) {
+                alert(err.message || 'Erro ao salvar ambiente.');
+            }
+        }
+
+        function preencherCamposMqttDispositivo(dispositivo = null) {
+            const dados = dispositivo || {};
+            document.getElementById('disp_status_conexao').value = formatarCampoSomenteLeitura(dados.status_conexao);
+            document.getElementById('disp_ultimo_contato').value = formatarCampoSomenteLeitura(dados.ultimo_contato_em);
+            document.getElementById('disp_ultima_leitura').value = formatarCampoSomenteLeitura(dados.ultima_leitura_em);
+            document.getElementById('disp_ultima_temperatura').value = formatarCampoSomenteLeitura(dados.ultima_temperatura_c, dados.ultima_temperatura_c !== null && dados.ultima_temperatura_c !== undefined && dados.ultima_temperatura_c !== '' ? ' °C' : '');
+            document.getElementById('disp_ultima_umidade').value = formatarCampoSomenteLeitura(dados.ultima_umidade_pct, dados.ultima_umidade_pct !== null && dados.ultima_umidade_pct !== undefined && dados.ultima_umidade_pct !== '' ? ' %' : '');
+            document.getElementById('disp_led_aceso').value = formatarCampoSomenteLeitura(dados.led_aceso === null || dados.led_aceso === undefined ? '' : (dados.led_aceso ? 'Sim' : 'Não'));
+            document.getElementById('disp_controle_recebido_em').value = formatarCampoSomenteLeitura(dados.controle_recebido_em);
+            document.getElementById('disp_controle_comando_id').value = formatarCampoSomenteLeitura(dados.controle_comando_id);
+        }
+
+        function limparFormularioDispositivo() {
+            document.getElementById('disp_id').value = '';
+            renderEmpresasSelectDispositivo(usuarioAtual?.empresa_id || '');
+            renderAmbientesSelectDispositivo('', usuarioAtual?.empresa_id || '');
+            document.getElementById('disp_device_id').value = '';
+            document.getElementById('disp_nome').value = '';
+            document.getElementById('disp_modelo_placa').value = 'ESP32';
+            document.getElementById('disp_sensor').value = 'DHT11';
+            document.getElementById('disp_intervalo').value = '30';
+            document.getElementById('disp_offline_apos').value = '120';
+            document.getElementById('disp_limite_led').value = '';
+            document.getElementById('disp_em_manutencao').checked = false;
+            preencherCamposMqttDispositivo();
+            document.getElementById('dispositivo-submit').textContent = 'Salvar Dispositivo';
+        }
+
+        function preencherFormularioDispositivo(dispositivo) {
+            document.getElementById('disp_id').value = dispositivo.id;
+            renderEmpresasSelectDispositivo(dispositivo.empresa_id || '');
+            renderAmbientesSelectDispositivo(dispositivo.ambiente_id || '', dispositivo.empresa_id || '');
+            document.getElementById('disp_device_id').value = dispositivo.device_id || '';
+            document.getElementById('disp_nome').value = dispositivo.nome || '';
+            document.getElementById('disp_modelo_placa').value = dispositivo.modelo_placa || 'ESP32';
+            document.getElementById('disp_sensor').value = dispositivo.sensor || 'DHT11';
+            document.getElementById('disp_intervalo').value = dispositivo.intervalo_leitura_seg ?? 30;
+            document.getElementById('disp_offline_apos').value = dispositivo.offline_apos_seg ?? 120;
+            document.getElementById('disp_limite_led').value = dispositivo.limite_led ?? '';
+            document.getElementById('disp_em_manutencao').checked = Boolean(dispositivo.em_manutencao);
+            preencherCamposMqttDispositivo(dispositivo);
+            document.getElementById('dispositivo-submit').textContent = 'Salvar Alterações';
+            mudarAba('dispositivo');
+        }
+
+        function renderDispositivosTabela() {
+            const tbody = document.getElementById('dispositivos-tbody');
+            if (!tbody) return;
+
+            if (!dispositivosCache.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="12" class="py-4 text-[#5f5f5d]">Nenhum dispositivo cadastrado.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = dispositivosCache.map((dispositivo) => `
+                <tr class="border-b border-[#eceae4] last:border-b-0">
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${dispositivo.nome_empresa || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${dispositivo.nome_ambiente || '-'}</td>
+                    <td class="py-3 pr-4 font-medium text-[#1c1c1c]">${dispositivo.device_id || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${dispositivo.nome || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${dispositivo.modelo_placa || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${dispositivo.sensor || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${formatarCampoTabela(dispositivo.intervalo_leitura_seg, ' s')}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${formatarCampoTabela(dispositivo.offline_apos_seg, ' s')}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${dispositivo.status_conexao || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${formatarCampoTabela(dispositivo.ultima_temperatura_c, dispositivo.ultima_temperatura_c !== null && dispositivo.ultima_temperatura_c !== undefined ? ' °C' : '')}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${formatarCampoTabela(dispositivo.ultima_umidade_pct, dispositivo.ultima_umidade_pct !== null && dispositivo.ultima_umidade_pct !== undefined ? ' %' : '')}</td>
+                    <td class="py-3">
+                        <div class="flex gap-2">
+                            <button type="button" onclick="editarDispositivo(${dispositivo.id})" class="px-3 py-1.5 border border-[#d8d3c8] rounded-[6px] bg-white/50">Editar</button>
+                            <button type="button" onclick="excluirDispositivo(${dispositivo.id})" class="px-3 py-1.5 border border-red-200 text-red-700 rounded-[6px] bg-red-50">Excluir</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function carregarDispositivos() {
+            const tbody = document.getElementById('dispositivos-tbody');
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="12" class="py-4 text-[#5f5f5d]">A carregar dispositivos...</td>
+                    </tr>
+                `;
+            }
+
+            try {
+                const res = await fetch('/api/dispositivos');
+                const json = await res.json();
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao listar dispositivos.');
+                }
+
+                dispositivosCache = Array.isArray(json.data) ? json.data : [];
+                renderDispositivosTabela();
+            } catch (err) {
+                dispositivosCache = [];
+                if (tbody) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="12" class="py-4 text-red-700">Não foi possível carregar os dispositivos.</td>
+                        </tr>
+                    `;
+                }
+            }
+        }
+
+        function editarDispositivo(dispositivoId) {
+            const dispositivo = dispositivosCache.find((item) => Number(item.id) === Number(dispositivoId));
+            if (!dispositivo) {
+                alert('Dispositivo não encontrado na lista.');
+                return;
+            }
+
+            preencherFormularioDispositivo(dispositivo);
+        }
+
+        async function excluirDispositivo(dispositivoId) {
+            const dispositivo = dispositivosCache.find((item) => Number(item.id) === Number(dispositivoId));
+            if (!dispositivo) {
+                alert('Dispositivo não encontrado na lista.');
+                return;
+            }
+
+            if (!window.confirm(`Deseja realmente excluir o dispositivo "${dispositivo.device_id}"?`)) return;
+
+            try {
+                const res = await fetch(`/api/dispositivos/${dispositivoId}`, { method: 'DELETE' });
+                const json = await res.json();
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao excluir dispositivo.');
+                }
+
+                alert(json.message || 'Dispositivo excluído com sucesso!');
+                if (Number(document.getElementById('disp_id').value) === Number(dispositivoId)) {
+                    limparFormularioDispositivo();
+                }
+                await carregarDispositivos();
+            } catch (err) {
+                alert(err.message || 'Erro ao excluir dispositivo.');
+            }
+        }
+
+        async function cadastrarDispositivoApi(e) {
+            e.preventDefault();
+            const dispositivoId = document.getElementById('disp_id').value;
+            const emEdicao = Boolean(dispositivoId);
+            const dados = {
+                empresa_id: normalizarNumero(document.getElementById('disp_empresa_id').value),
+                ambiente_id: normalizarNumero(document.getElementById('disp_ambiente_id').value),
+                device_id: document.getElementById('disp_device_id').value.trim(),
+                nome: document.getElementById('disp_nome').value,
+                modelo_placa: document.getElementById('disp_modelo_placa').value,
+                sensor: document.getElementById('disp_sensor').value,
+                intervalo_leitura_seg: normalizarNumero(document.getElementById('disp_intervalo').value),
+                offline_apos_seg: normalizarNumero(document.getElementById('disp_offline_apos').value),
+                em_manutencao: document.getElementById('disp_em_manutencao').checked,
+                limite_led: normalizarDecimal(document.getElementById('disp_limite_led').value)
+            };
+
+            try {
+                const res = await fetch(emEdicao ? `/api/dispositivos/${dispositivoId}` : '/api/dispositivos', {
+                    method: emEdicao ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dados)
+                });
+                const json = await res.json();
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao salvar dispositivo.');
+                }
+
+                alert(json.message || (emEdicao ? 'Dispositivo atualizado com sucesso!' : 'Dispositivo cadastrado com sucesso!'));
+                limparFormularioDispositivo();
+                await carregarDispositivos();
+                mudarAba('dispositivo');
+            } catch (err) {
+                alert(err.message || 'Erro ao salvar dispositivo.');
+            }
+        }
+
+        function limparFormularioEquipamento() {
+            document.getElementById('eq_internal_id').value = '';
+            document.getElementById('eq_id').value = '';
+            document.getElementById('eq_name').value = '';
+            renderEmpresasSelectEquipamento(usuarioAtual?.empresa_id || '');
+            renderSetoresSelectEquipamento('', usuarioAtual?.empresa_id || '');
+            document.getElementById('eq_id').readOnly = false;
+            document.getElementById('equipamento-submit').textContent = 'Salvar Equipamento';
+        }
+
+        function preencherFormularioEquipamento(equipamento) {
+            document.getElementById('eq_internal_id').value = equipamento.id;
+            document.getElementById('eq_id').value = equipamento.equipamento_id || '';
+            document.getElementById('eq_name').value = equipamento.equioamento_name || '';
+            renderEmpresasSelectEquipamento(equipamento.empresa_id || '');
+            renderSetoresSelectEquipamento(equipamento.setor_id || '', equipamento.empresa_id || '');
+            document.getElementById('eq_id').readOnly = false;
+            document.getElementById('equipamento-submit').textContent = 'Salvar Alterações';
+            mudarAba('equipamento');
+        }
+
+        function renderEquipamentosTabela() {
+            const tbody = document.getElementById('equipamentos-tbody');
+            if (!tbody) return;
+
+            if (!equipamentosCache.length) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-4 text-[#5f5f5d]">Nenhum equipamento cadastrado.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = equipamentosCache.map((equipamento) => `
+                <tr class="border-b border-[#eceae4] last:border-b-0">
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${equipamento.nome_empresa || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${equipamento.nome_setor || '-'}</td>
+                    <td class="py-3 pr-4 font-medium text-[#1c1c1c]">${equipamento.equipamento_id || '-'}</td>
+                    <td class="py-3 pr-4 text-[#5f5f5d]">${equipamento.equioamento_name || '-'}</td>
+                    <td class="py-3">
+                        <div class="flex gap-2">
+                            <button type="button" onclick="editarEquipamento(${equipamento.id})" class="px-3 py-1.5 border border-[#d8d3c8] rounded-[6px] bg-white/50">Editar</button>
+                            <button type="button" onclick="excluirEquipamento(${equipamento.id})" class="px-3 py-1.5 border border-red-200 text-red-700 rounded-[6px] bg-red-50">Excluir</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function carregarEquipamentos() {
+            const tbody = document.getElementById('equipamentos-tbody');
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="py-4 text-[#5f5f5d]">A carregar equipamentos...</td>
+                    </tr>
+                `;
+            }
+
+            try {
+                const res = await fetch('/api/equipamentos');
+                const json = await res.json();
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao listar equipamentos.');
+                }
+
+                equipamentosCache = Array.isArray(json.data) ? json.data : [];
+                renderEquipamentosTabela();
+            } catch (err) {
+                equipamentosCache = [];
+                if (tbody) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="py-4 text-red-700">Não foi possível carregar os equipamentos.</td>
+                        </tr>
+                    `;
+                }
+            }
+        }
+
+        function editarEquipamento(equipamentoId) {
+            const equipamento = equipamentosCache.find((item) => Number(item.id) === Number(equipamentoId));
+            if (!equipamento) {
+                alert('Equipamento não encontrado na lista.');
+                return;
+            }
+
+            preencherFormularioEquipamento(equipamento);
+        }
+
+        async function excluirEquipamento(equipamentoId) {
+            const equipamento = equipamentosCache.find((item) => Number(item.id) === Number(equipamentoId));
+            if (!equipamento) {
+                alert('Equipamento não encontrado na lista.');
+                return;
+            }
+
+            if (!window.confirm(`Deseja realmente excluir o equipamento "${equipamento.equioamento_name}"?`)) return;
+
+            try {
+                const res = await fetch(`/api/equipamentos/${equipamentoId}`, { method: 'DELETE' });
+                const json = await res.json();
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao excluir equipamento.');
+                }
+
+                alert(json.message || 'Equipamento excluído com sucesso!');
+                if (Number(document.getElementById('eq_internal_id').value) === Number(equipamentoId)) {
+                    limparFormularioEquipamento();
+                }
+                await carregarEquipamentos();
+            } catch (err) {
+                alert(err.message || 'Erro ao excluir equipamento.');
             }
         }
 
         async function cadastrarEquipamentoApi(e) {
             e.preventDefault();
+            const equipamentoInternoId = document.getElementById('eq_internal_id').value;
+            const emEdicao = Boolean(equipamentoInternoId);
             const dados = {
-                empresa_id: parseInt(document.getElementById('eq_empresa_id').value),
-                setor_id: parseInt(document.getElementById('eq_setor_id').value),
-                equipamento_id: parseInt(document.getElementById('eq_id').value),
+                empresa_id: normalizarNumero(document.getElementById('eq_empresa_id').value),
+                setor_id: normalizarNumero(document.getElementById('eq_setor_id').value),
+                equipamento_id: normalizarNumero(document.getElementById('eq_id').value),
                 equioamento_name: document.getElementById('eq_name').value
             };
             try {
-                const res = await fetch('/api/equipamentos', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dados)
+                const res = await fetch(emEdicao ? `/api/equipamentos/${equipamentoInternoId}` : '/api/equipamentos', {
+                    method: emEdicao ? 'PUT' : 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dados)
                 });
                 const json = await res.json();
-                alert(json.message || "Equipamento cadastrado com sucesso!");
-                e.target.reset();
-                mudarAba('monitor');
+                if (!res.ok) {
+                    throw new Error(json.error || 'Erro ao salvar equipamento.');
+                }
+
+                alert(json.message || (emEdicao ? 'Equipamento atualizado com sucesso!' : 'Equipamento cadastrado com sucesso!'));
+                limparFormularioEquipamento();
+                await carregarEquipamentos();
+                mudarAba('equipamento');
             } catch (err) {
-                alert("Erro ao cadastrar equipamento.");
+                alert(err.message || 'Erro ao salvar equipamento.');
             }
         }
     </script>

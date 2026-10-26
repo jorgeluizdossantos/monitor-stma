@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STMA - Empresas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/stma-shell.css">
+</head>
+<body class="min-h-screen flex" data-page="empresa">
+    <div id="menu-container"></div>
+
+    <main class="flex-1 p-8 overflow-y-auto">
+        <iframe id="page-frame" class="stma-frame" src="app.html?embedded=1&view=empresa" title="Gerenciar Empresas"></iframe>
+    </main>
+
+    <script src="js/stma-shell.js"></script>
+</body>
+</html>

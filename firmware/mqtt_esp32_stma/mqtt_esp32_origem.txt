@@ -1,0 +1,152 @@
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include "DHT.h"
+
+
+#define DHTTYPE DHT11   // modelo do sensor - DHT11
+#define DHTPIN 4 //pino do sensor
+DHT dht(DHTPIN, DHTTYPE); //variavel para leitura
+
+// Update these with values suitable for your network.
+
+
+const char *ssid = "JORGE_TP";
+const char *password = "69879739";
+const char* mqtt_server = "broker.hivemq.com"; //BROKER MQTT
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+unsigned long lastMsg = 0;
+#define MSG_BUFFER_SIZE	(50)
+char msg[MSG_BUFFER_SIZE];
+
+char LED;
+char Sensor;
+
+void setup_wifi() {
+
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  randomSeed(micros());
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+
+  if ((char)payload[0] == 'L') {
+    digitalWrite(LED, HIGH);
+    snprintf (msg, MSG_BUFFER_SIZE, "O LED está aceso");
+    Serial.print("Publica mensagem: ");
+    Serial.println(msg);
+    client.publish("engeasier/led", msg);
+  }
+
+  if ((char)payload[0] == 'l') {
+    digitalWrite(LED, LOW);
+    snprintf (msg, MSG_BUFFER_SIZE, "O LED está apagado");
+    Serial.print("Publica mensagem: ");
+    Serial.println(msg);
+    client.publish("engeasier/led", msg);
+  }
+
+}
+
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Create a random client ID
+    String clientId = "ENGEASIER_MQTT";
+    clientId += String(random(0xffff), HEX);
+    // Attempt to connect
+    if (client.connect(clientId.c_str())) {
+      Serial.println("Conectado");
+
+      client.subscribe("engeasier/publisher");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+}
+
+void setup() {
+
+  LED = 5;
+  Sensor = 15;
+
+  pinMode(LED, OUTPUT);
+  pinMode(Sensor, INPUT);
+
+  Serial.begin(115200);
+  setup_wifi();
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+
+  dht.begin();
+}
+
+void loop() {
+
+  float t = dht.readTemperature();
+  float h = dht.readHumidity();
+
+  int sns = digitalRead(Sensor);
+
+  if (sns == 1) {
+    Serial.println("Sensor de Porta Fechado");
+    snprintf (msg, MSG_BUFFER_SIZE,"Porta Fechada" );
+    client.publish("engeasier/porta",msg);
+  } else {
+    Serial.println("Sensor de Porta Aberto");
+    snprintf (msg, MSG_BUFFER_SIZE, "Porta Aberta");
+    client.publish("engeasier/porta",msg);
+  }
+
+  Serial.print("Temperatura: ");
+  Serial.print(t);
+  Serial.println(F("°C"));
+  sprintf(msg, "%f", t);
+  client.publish("engeasier/temperatura", msg);
+
+  Serial.print("Umidade: ");
+  Serial.print(h);
+  Serial.println(F("°%"));
+  sprintf(msg, "%f", h);
+  client.publish("engeasier/umidade", msg);
+
+  delay(1000);
+
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+
+}

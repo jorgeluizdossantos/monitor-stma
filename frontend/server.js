@@ -26,9 +26,18 @@ const ROUTE_MAP = new Map([
   ['/', 'login.html'],
   ['/login.html', 'login.html'],
   ['/dashboard.html', 'dashboard.html'],
+  ['/app.html', 'app.html'],
+  ['/usuarios.html', 'usuarios.html'],
+  ['/empresas.html', 'empresas.html'],
+  ['/setores.html', 'setores.html'],
+  ['/ambientes.html', 'ambientes.html'],
+  ['/dispositivos.html', 'dispositivos.html'],
   ['/equipamentos.html', 'equipamentos.html'],
   ['/monitor_engeasier-limite.html', 'monitor_engeasier-limite.html'],
-  ['/js/stma-api.js', path.join('js', 'stma-api.js')]
+  ['/menu.html', 'menu.html'],
+  ['/js/stma-api.js', path.join('js', 'stma-api.js')],
+  ['/js/stma-shell.js', path.join('js', 'stma-shell.js')],
+  ['/css/stma-shell.css', path.join('css', 'stma-shell.css')]
 ]);
 
 function setNoCacheHeaders(res) {
@@ -109,6 +118,23 @@ app.use('/api', (req, res) => {
 app.use((req, res) => {
   const pathname = req.path || '/';
   const mapped = ROUTE_MAP.get(pathname);
+  const fallbackRelativePath = pathname.startsWith('/') ? pathname.slice(1) : pathname;
+  const fallbackAbsolutePath = path.join(root, fallbackRelativePath);
+
+  if (mapped) {
+    sendFileBuffer(res, mapped);
+    return;
+  }
+
+  if (
+    fallbackRelativePath &&
+    fallbackAbsolutePath.startsWith(root) &&
+    fs.existsSync(fallbackAbsolutePath) &&
+    fs.statSync(fallbackAbsolutePath).isFile()
+  ) {
+    sendFileBuffer(res, fallbackRelativePath);
+    return;
+  }
 
   if (!mapped) {
     res.status(404);
@@ -120,7 +146,6 @@ app.use((req, res) => {
     return;
   }
 
-  sendFileBuffer(res, mapped);
 });
 
 app.listen(PORT, () => {

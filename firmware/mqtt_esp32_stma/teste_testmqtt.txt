@@ -1,0 +1,26 @@
+Você não precisa alterar o código. Ele já publica no broker público broker.hivemq.com, então basta o Test Client se inscrever (subscribe) nos mesmos tópicos. O Test Client do MQTT.Cool é um cliente web que se conecta ao mesmo broker por meio do servidor MQTT.Cool.
+
+O que extrair do código
+Informação	Valor no código	Onde usar
+Broker	broker.hivemq.com	Endereço do broker
+Porta	1883 (MQTT sem TLS)	Endereço do broker
+Tópico de temperatura	engeasier/temperatura	Subscribe
+Tópico de umidade	engeasier/umidade	Subscribe
+Tópico da porta	engeasier/porta	Subscribe
+Tópico do LED (confirmação)	engeasier/led	Subscribe
+Tópico de comando	engeasier/publisher	Publish (o ESP32 escuta aqui)
+
+Usuário e senha não são necessários, porque o broker público é anônimo (o client.connect() do código não envia credenciais).
+
+Passo a passo na página
+Conexão: no campo do endereço do broker, informe mqtt://broker.hivemq.com:1883. Se a página pedir host e porta separados, use broker.hivemq.com e 1883. Deixe o endereço do servidor MQTT.Cool no valor padrão. Se houver campo de Client ID, use qualquer nome diferente de ENGEASIER_MQTT..., para não derrubar a conexão do ESP32. Deixe usuário e senha em branco e clique em Connect.
+Receber os dados: na área de Subscribe, adicione os tópicos engeasier/temperatura, engeasier/umidade, engeasier/porta e engeasier/led. Se preferir um só, use o curinga engeasier/#. As mensagens vão chegar a cada cerca de 1 segundo.
+Controlar o LED (opcional): em Publish, use o tópico engeasier/publisher e envie a mensagem L para acender ou l para apagar. O ESP32 responde em engeasier/led.
+
+Os nomes exatos dos botões e campos podem variar um pouco na interface, mas a lógica é essa.
+
+Pontos de atenção
+Wi-Fi exposto: o arquivo contém o SSID e a senha da sua rede. Se for compartilhar o código, remova esses dados e considere trocar a senha.
+Tópicos públicos: o broker.hivemq.com é aberto, e qualquer pessoa que assine engeasier/# vê seus dados e pode mandar comandos ao LED. Para algo além de testes, use um prefixo mais único (por exemplo engeasier/<empresa>/<setor>/temperatura) ou um broker com autenticação.
+Primeira publicação: no loop(), o código publica antes de checar client.connected(), então a primeira leitura pode se perder. O ideal é mover o bloco if (!client.connected()) reconnect(); para o início do loop().
+Leituras inválidas: se o DHT11 falhar, t e h virão como nan. Vale testar com isnan() antes de publicar.

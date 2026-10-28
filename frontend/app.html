@@ -96,7 +96,7 @@
 
                 <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] shadow-sm flex flex-col justify-between">
                     <div>
-                        <h3 class="text-[12px] font-bold tracking-wider text-[#1c1c1c] uppercase">Humidade</h3>
+                        <h3 class="text-[12px] font-bold tracking-wider text-[#1c1c1c] uppercase">Umidade</h3>
                         <div class="text-[11px] font-mono-tech text-[#5f5f5d] mb-3">stma/umidade</div>
                         <div class="text-[32px] font-bold font-mono-tech text-[#3b82f6]" id="umidade">--</div>
                     </div>
@@ -122,6 +122,23 @@
                         <button class="mt-3 w-full py-2.5 rounded-[6px] text-[13px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50" id="btn-led" disabled>Ligar LED</button>
                         <div class="text-[11px] font-mono-tech text-[#5f5f5d] mt-2" id="led-hora">Aguardando dados</div>
                     </div>
+                </div>
+
+                <div class="md:col-span-2 bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] shadow-sm">
+                    <h3 class="text-[12px] font-bold tracking-wider text-[#1c1c1c] uppercase">Controle automático do LED</h3>
+                    <div class="text-[11px] font-mono-tech text-[#5f5f5d] mb-4">envia para stma/limite · confirmação em stma/limite_atual</div>
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div>
+                            <label for="limite" class="block text-[12px] font-bold uppercase text-[#5f5f5d] mb-1">Acender o LED a partir de</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="limite" min="0" max="50" step="0.5" placeholder="28" class="w-28 px-3 py-2 bg-white/50 border border-[#eceae4] rounded-[6px] text-[13px]">
+                                <span class="text-[13px] text-[#5f5f5d]">°C</span>
+                            </div>
+                        </div>
+                        <button type="button" id="btn-aplicar" class="px-4 py-2.5 btn-lovable font-medium text-[14px] rounded-[6px] disabled:opacity-50" disabled>Aplicar limite</button>
+                        <button type="button" id="btn-desativar" class="px-4 py-2.5 border border-[#d8d3c8] rounded-[6px] text-[14px] font-medium bg-white/50 disabled:opacity-50" disabled>Desativar automático</button>
+                    </div>
+                    <div class="text-[12px] font-mono-tech text-[#5f5f5d] mt-4" id="info-limite">Limite ativo no ESP32: aguardando informação</div>
                 </div>
             </div>
         </div>
@@ -901,18 +918,27 @@
         }
 
         const BROKER_URL = "wss://broker.hivemq.com:8884/mqtt";
-        const TOPICOS = ["stma/temperatura", "stma/umidade", "stma/porta", "stma/led"];
+        const TOPICOS = ["stma/temperatura", "stma/umidade", "stma/porta", "stma/led", "stma/limite_atual"];
         const TOPICO_COMANDO = "stma/publisher";
+        const TOPICO_LIMITE = "stma/limite";
 
         const dot = document.getElementById("dot");
         const statusText = document.getElementById("status-text");
         const btnLed = document.getElementById("btn-led");
+        const btnAplicar = document.getElementById("btn-aplicar");
+        const btnDesativar = document.getElementById("btn-desativar");
+        const inputLimite = document.getElementById("limite");
+        const infoLimite = document.getElementById("info-limite");
         let ledAceso = false;
+        let limitePendente = false;
+        let timerConfirmacao = null;
 
         function setStatus(online, texto) {
             if (dot) dot.classList.toggle("online", online);
             if (statusText) statusText.textContent = texto;
             if (btnLed) btnLed.disabled = !online;
+            if (btnAplicar) btnAplicar.disabled = !online;
+            if (btnDesativar) btnDesativar.disabled = !online;
         }
 
         function atualizarBotao() {
@@ -935,6 +961,40 @@
                     client.publish(TOPICO_COMANDO, comando);
                 }
             });
+        }
+
+        function mostrarInfoLimite(texto, aviso) {
+            if (!infoLimite) return;
+            infoLimite.textContent = texto;
+            infoLimite.style.color = aviso ? "#b45309" : "";
+        }
+
+        function enviarLimite(valor) {
+            if (!client || !client.connected) return;
+            limitePendente = true;
+            mostrarInfoLimite("Enviando limite ao dispositivo...");
+            client.publish(TOPICO_LIMITE, valor, { qos: 1, retain: true });
+            clearTimeout(timerConfirmacao);
+            timerConfirmacao = setTimeout(() => {
+                if (limitePendente) {
+                    mostrarInfoLimite("Sem confirmação do dispositivo. Verifique se está conectado.", true);
+                }
+            }, 5000);
+        }
+
+        if (btnAplicar) {
+            btnAplicar.addEventListener("click", () => {
+                const valor = parseFloat(inputLimite.value);
+                if (isNaN(valor) || valor < 0 || valor > 50) {
+                    mostrarInfoLimite("Informe um limite entre 0 e 50 °C.", true);
+                    return;
+                }
+                enviarLimite(valor.toFixed(1));
+            });
+        }
+
+        if (btnDesativar) {
+            btnDesativar.addEventListener("click", () => enviarLimite("off"));
         }
 
         const client = mqtt.connect(BROKER_URL, {
@@ -983,6 +1043,23 @@
                 atualizarCard("led", aceso ? "Aceso" : "Apagado");
                 ledAceso = aceso;
                 atualizarBotao();
+            }
+
+            if (topico === "stma/limite_atual") {
+                limitePendente = false;
+                clearTimeout(timerConfirmacao);
+                if (/^off/i.test(texto)) {
+                    mostrarInfoLimite("Controle automático desativado (o LED responde apenas ao botão).");
+                } else {
+                    const v = parseFloat(texto);
+                    if (isNaN(v)) {
+                        mostrarInfoLimite("Resposta inesperada do dispositivo: " + texto, true);
+                    } else {
+                        mostrarInfoLimite("Limite ativo no ESP32: " + v.toFixed(1).replace(".", ",") +
+                            " °C (o LED acende ao atingir esse valor).");
+                        if (document.activeElement !== inputLimite) inputLimite.value = v.toFixed(1);
+                    }
+                }
             }
         });
 

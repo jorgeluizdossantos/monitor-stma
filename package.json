@@ -1,0 +1,12 @@
+{
+  "name": "stma",
+  "version": "1.0.0",
+  "private": true,
+  "description": "STMA - execucao local unificada do backend e do frontend.",
+  "scripts": {
+    "dev": "node scripts/start.js development",
+    "prod": "node scripts/start.js production",
+    "db:dev:setup": "node backend/scripts/create-dev-db.js",
+    "db:dev:replicate": "node backend/scripts/create-dev-db.js --com-dados"
+  }
+}

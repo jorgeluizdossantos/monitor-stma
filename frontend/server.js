@@ -3,11 +3,17 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 
+// Carrega o arquivo de configuracao indicado pelos scripts da raiz
+// (npm run dev / npm run prod). Sem STMA_ENV_FILE, usam-se os padroes abaixo.
+require('dotenv').config(
+  process.env.STMA_ENV_FILE ? { path: process.env.STMA_ENV_FILE } : undefined
+);
+
 const app = express();
-const PORT = Number(process.env.PORT || 5500);
+const PORT = Number(process.env.FRONTEND_PORT || 5500);
 const root = __dirname;
-const API_TARGET_HOST = '127.0.0.1';
-const API_TARGET_PORT = 3001;
+const API_TARGET_HOST = process.env.API_TARGET_HOST || '127.0.0.1';
+const API_TARGET_PORT = Number(process.env.API_TARGET_PORT || 3001);
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',

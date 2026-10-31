@@ -2,6 +2,8 @@
 #include <esp_mac.h>
 #include <PubSubClient.h>
 #include <DHT.h>
+#include <WiFiManager.h>
+#include <Preferences.h>
 #include <time.h>
 #include <math.h>
 #include "config.h"
@@ -12,12 +14,15 @@ constexpr float HYSTERESIS = 0.5f;
 DHT dht(DHT_PIN, DHT11);
 WiFiClient network;
 PubSubClient mqtt(network);
+Preferences prefs;
 String deviceId, baseTopic;
 String lastCommand;
 bool ledOn = false, automatic = false, above = false, reevaluate = false;
+bool portalRequested = false;
 float threshold = 0;
 unsigned long lastSample = 0, lastReconnect = 0, lastWifi = 0;
 void publishControl();
+void abrirRede();
 
 bool publish(const String& topic, const char* value, bool retained = false) {
   const bool ok = mqtt.publish(topic.c_str(), value, retained);
@@ -85,6 +90,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
     if (command == "L") setLed(true);
     else if (command == "l") setLed(false);
     lastCommand = ""; publishControl();
+  } else if (received == baseTopic + "/portal") {
+    // Reconfigura a rede sem acesso fisico. O portal fica aberto por
+    // PORTAL_TIMEOUT_S e depois o dispositivo volta ao modo normal.
+    if (command == "1" || command.equalsIgnoreCase("portal")) portalRequested = true;
   }
 }
 void publishControl() {
@@ -113,6 +122,7 @@ void reconnect(unsigned long now) {
     mqtt.subscribe((baseTopic + "/comando").c_str(), 1);
     mqtt.subscribe((baseTopic + "/acionar").c_str(), 1);
     mqtt.subscribe((baseTopic + "/limite").c_str(), 1);
+    mqtt.subscribe((baseTopic + "/portal").c_str(), 1);
     if (LEGACY_PAGE_ENABLED) {
       mqtt.subscribe((String(MQTT_PREFIX) + "/publisher").c_str(), 1);
       mqtt.subscribe((String(MQTT_PREFIX) + "/limite").c_str(), 1);
@@ -120,6 +130,37 @@ void reconnect(unsigned long now) {
     publishLed(); publishThreshold();
     lastSample = now - SAMPLE_MS;
     Serial.println("MQTT conectado");
+  }
+}
+// Conecta na rede ja configurada ou abre o portal local para configura-la.
+// As credenciais ficam na NVS: trocar de rede nao exige recompilar o sketch.
+void abrirRede() {
+  prefs.begin("stma", false);
+  const bool portalPedido = prefs.getBool("portal", false);
+  if (portalPedido) prefs.remove("portal");
+  prefs.end();
+
+  WiFiManager wm;
+  wm.setConfigPortalTimeout(PORTAL_TIMEOUT_S);
+  wm.setAPCallback([](WiFiManager*) {
+    Serial.print("Portal de configuracao aberto em http://");
+    Serial.println(WiFi.softAPIP());
+  });
+
+  const String nomeAp = String(PORTAL_AP_PREFIXO) + deviceId;
+
+  // autoConnect reaproveita as credenciais gravadas e nao abre o portal
+  // quando a rede responde.
+  if (!portalPedido && wm.autoConnect(nomeAp.c_str(), PORTAL_AP_SENHA)) {
+    Serial.print("Rede conectada: "); Serial.println(WiFi.SSID());
+    return;
+  }
+
+  // Sem credenciais utilizaveis ou reconfiguracao pedida por MQTT.
+  Serial.println(portalPedido ? "Portal solicitado remotamente" : "Sem credenciais; abrindo o portal");
+  if (!wm.startConfigPortal(nomeAp.c_str(), PORTAL_AP_SENHA)) {
+    Serial.println("Portal encerrado sem configuracao; reiniciando");
+    delay(1000); ESP.restart();
   }
 }
 void setup() {
@@ -138,7 +179,7 @@ void setup() {
   snprintf(identifier, sizeof(identifier), "esp32-%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   deviceId = identifier;
   baseTopic = String(MQTT_PREFIX) + "/" + deviceId;
-  WiFi.setAutoReconnect(true); WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.setAutoReconnect(true); abrirRede();
   // UTC. Sem relógio sincronizado o JSON omite timestamp; backend usa recebimento.
   configTime(0, 0, "pool.ntp.org", "time.google.com");
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
@@ -154,6 +195,19 @@ void loop() {
   }
   if (!mqtt.connected()) { reconnect(now); delay(5); return; }
   mqtt.loop();
+  if (portalRequested) {
+    // Marca o pedido na NVS e reinicia: no boot o portal e aberto no lugar
+    // da conexao normal. O status fica offline para o painel nao exibir
+    // o dispositivo como online enquanto o portal esta aberto.
+    portalRequested = false;
+    prefs.begin("stma", false);
+    prefs.putBool("portal", true);
+    prefs.end();
+    publish(baseTopic + "/status", "offline", true);
+    mqtt.disconnect();
+    Serial.println("Reiniciando para configurar a rede");
+    delay(200); ESP.restart(); return;
+  }
   if (now - lastSample < SAMPLE_MS) { delay(1); return; }
   lastSample = now;
   // Repetir estado permite recuperar a porta se backend estiver indisponível.

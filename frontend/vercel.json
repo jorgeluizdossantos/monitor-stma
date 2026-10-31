@@ -1,7 +1,7 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://SUBSTITUIR-PELA-URL-DO-BACKEND/api/$1" },
+    { "source": "/api/(.*)", "destination": "https://monitor-stma-h0hch7b9h-jorge-luiz-dos-santos-projects.vercel.app/api/$1" },
     { "source": "/", "destination": "/login.html" }
   ]
 }

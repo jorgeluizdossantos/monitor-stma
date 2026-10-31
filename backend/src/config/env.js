@@ -16,6 +16,7 @@ const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT || 3001),
   corsOrigin: process.env.CORS_ORIGIN || '*',
+  sessionSecret: process.env.SESSION_SECRET || 'stma-dev-secret',
   db: {
     host: process.env.DB_HOST || '',
     port: Number(process.env.DB_PORT || 3306),
@@ -24,6 +25,7 @@ const env = {
     password: process.env.DB_PASSWORD || '',
     ssl: toBoolean(process.env.DB_SSL, true),
     sslRejectUnauthorized: toBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, true),
+    sslCa: process.env.DB_SSL_CA || null,
     sslCaPath: process.env.DB_SSL_CA_PATH
       ? resolveFromBackend(process.env.DB_SSL_CA_PATH)
       : null

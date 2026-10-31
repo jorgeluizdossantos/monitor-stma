@@ -11,7 +11,10 @@ function buildSslConfig() {
     rejectUnauthorized: env.db.sslRejectUnauthorized
   };
 
-  if (env.db.sslCaPath && fs.existsSync(env.db.sslCaPath)) {
+  if (env.db.sslCa) {
+    // Permite colar o PEM numa linha única (com \n literais) ou com quebras reais
+    sslConfig.ca = env.db.sslCa.replace(/\\n/g, '\n');
+  } else if (env.db.sslCaPath && fs.existsSync(env.db.sslCaPath)) {
     sslConfig.ca = fs.readFileSync(env.db.sslCaPath, 'utf8');
   }
 

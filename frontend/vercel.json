@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://SUBSTITUIR-PELA-URL-DO-BACKEND/api/$1" },
+    { "source": "/", "destination": "/login.html" }
+  ]
+}

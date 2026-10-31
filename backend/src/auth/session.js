@@ -1,9 +1,9 @@
 const crypto = require('crypto');
 const { queryOne } = require('../config/db');
+const { env } = require('../config/env');
 
 const COOKIE_NAME = 'stma_session';
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
-const sessions = new Map();
 
 function parseCookies(rawCookie = '') {
   return rawCookie
@@ -20,28 +20,25 @@ function parseCookies(rawCookie = '') {
     }, {});
 }
 
-function cleanupExpiredSessions() {
-  const now = Date.now();
-  for (const [token, session] of sessions.entries()) {
-    if (session.expiresAt <= now) {
-      sessions.delete(token);
-    }
-  }
+function signPayload(encodedPayload) {
+  return crypto
+    .createHmac('sha256', env.sessionSecret)
+    .update(encodedPayload)
+    .digest('base64url');
 }
 
 function createSession(userId) {
-  cleanupExpiredSessions();
-  const token = crypto.randomUUID();
-  sessions.set(token, {
-    userId,
-    expiresAt: Date.now() + SESSION_TTL_MS
-  });
-  return token;
+  const payload = Buffer.from(
+    JSON.stringify({ userId, exp: Date.now() + SESSION_TTL_MS }),
+    'utf8'
+  ).toString('base64url');
+
+  return `${payload}.${signPayload(payload)}`;
 }
 
-function destroySession(token) {
-  if (!token) return;
-  sessions.delete(token);
+function destroySession() {
+  // Token assinado é stateless: não há o que apagar no servidor.
+  // O logout apenas remove o cookie no navegador.
 }
 
 function getSessionToken(req) {
@@ -50,14 +47,28 @@ function getSessionToken(req) {
 }
 
 function getSession(token) {
-  cleanupExpiredSessions();
-  const session = sessions.get(token);
-  if (!session) return null;
-  if (session.expiresAt <= Date.now()) {
-    sessions.delete(token);
+  if (!token || !token.includes('.')) return null;
+
+  const [payload, signature] = token.split('.');
+  const expected = signPayload(payload);
+
+  if (signature.length !== expected.length) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
     return null;
   }
-  return session;
+
+  let data;
+  try {
+    data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+  } catch (error) {
+    return null;
+  }
+
+  if (!data || !data.userId || !data.exp || data.exp <= Date.now()) {
+    return null;
+  }
+
+  return { userId: data.userId };
 }
 
 function setSessionCookie(res, token) {
@@ -155,7 +166,6 @@ async function getAuthenticatedUser(req) {
   const user = await getUserFromNewModel(session.userId) || await getUserFromLegacyModel(session.userId);
 
   if (!user) {
-    sessions.delete(token);
     return null;
   }
 

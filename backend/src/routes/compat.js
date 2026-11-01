@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { query, queryOne, execute } = require('../config/db');
 const { requireAuth } = require('../auth/session');
 const { hashPassword } = require('../security/password');
+const { registrarLeitura } = require('../telemetry/ingest');
 
 const router = Router();
 
@@ -1258,42 +1259,36 @@ router.post('/equipamentos', requireAuth, async (req, res, next) => {
 
 router.post('/medicoes', requireAuth, async (req, res, next) => {
   try {
-    const { temp_vlr, umidade_vlr } = req.body || {};
+    const { device_id, temp_vlr, umidade_vlr, medido_em } = req.body || {};
 
-    const empresa = await ensureEmpresaBase(req.auth?.user?.empresaId || null);
-    const unidade = await ensureUnidadeBase(empresa.id);
-    let setor = await queryOne(
-      'SELECT id, nome FROM setor WHERE empresa_id = ? AND unidade_id = ? AND ativo = 1 ORDER BY id ASC LIMIT 1',
-      [empresa.id, unidade.id]
-    );
+    const leitura = await registrarLeitura({
+      deviceId: device_id,
+      temperatura: temp_vlr,
+      umidade: umidade_vlr,
+      medidoEm: medido_em
+    });
 
-    if (!setor) {
-      const setorInsert = await execute(
-        'INSERT INTO setor (empresa_id, unidade_id, nome, descricao, ativo) VALUES (?, ?, ?, ?, ?)',
-        [empresa.id, unidade.id, 'Setor Principal', 'Criado automaticamente para telemetria', 1]
-      );
-      setor = { id: setorInsert.insertId, nome: 'Setor Principal' };
+    if (leitura.resultado === 'invalido') {
+      return res.status(400).json({ ok: false, error: leitura.motivo });
     }
 
-    const ambiente = await ensureAmbienteBase(empresa.id, setor.id);
-    const dispositivo = await ensureDispositivoBase(empresa.id, ambiente.id, null, 'ESP32 Compatível');
+    if (leitura.resultado === 'pendente') {
+      return res.status(202).json({
+        ok: true,
+        pendente: true,
+        device_id: leitura.deviceId,
+        message: 'Dispositivo não cadastrado: contato registrado como pendente.'
+      });
+    }
 
-    await execute(
-      `UPDATE dispositivo
-       SET
-         status_conexao = 'online',
-         ultimo_contato_em = CURRENT_TIMESTAMP(3),
-         ultima_leitura_em = CURRENT_TIMESTAMP(3),
-         ultima_temperatura_c = ?,
-         ultima_umidade_pct = ?
-       WHERE id = ?`,
-      [temp_vlr ?? null, umidade_vlr ?? null, dispositivo.id]
-    );
-
-    return res.status(201).json({
+    return res.status(leitura.resultado === 'gravada' ? 201 : 200).json({
       ok: true,
-      message: 'Medição gravada com sucesso!',
-      dispositivo_id: dispositivo.id
+      duplicada: leitura.resultado === 'duplicada',
+      dispositivo_id: leitura.dispositivoId,
+      message:
+        leitura.resultado === 'gravada'
+          ? 'Medição gravada com sucesso!'
+          : 'Medição já registrada; nada a gravar.'
     });
   } catch (error) {
     return next(error);

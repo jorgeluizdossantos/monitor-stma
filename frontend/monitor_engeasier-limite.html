@@ -208,7 +208,7 @@
   <script src="js/stma-api.js"></script>
   <script>
     const BROKER_URL = 'wss://broker.hivemq.com:8884/mqtt';
-    const TOPICOS = ['stma/temperatura', 'stma/umidade', 'stma/porta', 'stma/led', 'stma/limite_atual'];
+    const TOPICOS = ['stma/+/dados', 'stma/temperatura', 'stma/umidade', 'stma/porta', 'stma/led', 'stma/limite_atual'];
     const TOPICO_COMANDO = 'stma/publisher';
     const TOPICO_LIMITE = 'stma/limite';
 
@@ -221,8 +221,6 @@
     const limiteInfoEl = document.getElementById('limiteInfo');
     const messageEl = document.getElementById('message');
 
-    let ultimaTemperatura = null;
-    let ultimaUmidade = null;
     let ledAceso = false;
     let limitePendente = false;
     let timerConfirmacao = null;
@@ -250,16 +248,36 @@
       btnLed.classList.toggle('on', ledAceso);
     }
 
-    async function persistirMedicao() {
-      if (ultimaTemperatura == null || ultimaUmidade == null) return;
+    async function persistirMedicao(medicao) {
       try {
-        await STMA.registrarMedicao({
-          temp_vlr: ultimaTemperatura,
-          umidade_vlr: ultimaUmidade
-        });
+        await STMA.registrarMedicao(medicao);
       } catch (error) {
         showMessage(error.message || 'Falha ao persistir medição na API.', 'error');
       }
+    }
+
+    function tratarPayloadDispositivo(texto) {
+      let dados;
+      try {
+        dados = JSON.parse(texto);
+      } catch (error) {
+        return;
+      }
+
+      const deviceId = typeof dados.id === 'string' ? dados.id.trim() : '';
+      const temperatura = Number(dados.temperatura);
+      const umidade = Number(dados.umidade);
+      if (!deviceId || !Number.isFinite(temperatura) || !Number.isFinite(umidade)) return;
+
+      updateCard('temperatura', `${temperatura.toFixed(1)} °C`);
+      updateCard('umidade', `${umidade.toFixed(1)} %`);
+
+      persistirMedicao({
+        device_id: deviceId,
+        temp_vlr: temperatura,
+        umidade_vlr: umidade,
+        medido_em: dados.timestamp || null
+      });
     }
 
     function enviarLimite(valor) {
@@ -306,20 +324,22 @@
     client.on('close', () => setStatus(false, 'Desconectado'));
     client.on('error', () => setStatus(false, 'Erro de conexão'));
 
-    client.on('message', async (topico, payload) => {
+    client.on('message', (topico, payload) => {
       const texto = payload.toString().trim();
+
+      if (/^stma\/[^/]+\/dados$/.test(topico)) {
+        tratarPayloadDispositivo(texto);
+        return;
+      }
 
       if (topico === 'stma/temperatura') {
         const valor = parseFloat(texto);
-        ultimaTemperatura = Number.isNaN(valor) ? null : valor;
         updateCard('temperatura', Number.isNaN(valor) ? 'Leitura inválida' : `${valor.toFixed(1)} °C`);
       }
 
       if (topico === 'stma/umidade') {
         const valor = parseFloat(texto);
-        ultimaUmidade = Number.isNaN(valor) ? null : valor;
         updateCard('umidade', Number.isNaN(valor) ? 'Leitura inválida' : `${valor.toFixed(1)} %`);
-        await persistirMedicao();
       }
 
       if (topico === 'stma/porta') {

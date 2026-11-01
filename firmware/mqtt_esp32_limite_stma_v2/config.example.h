@@ -11,6 +11,10 @@ const char* PORTAL_AP_SENHA = "troque-esta-senha";
 // Tempo que o portal fica aberto, em segundos. 0 = sem limite.
 // Ao expirar sem configuracao, o dispositivo reinicia e volta ao modo normal.
 const uint16_t PORTAL_TIMEOUT_S = 180;
+// Tempo sem Wi-Fi antes de o dispositivo reiniciar e reabrir o portal local.
+// Sem isso ele fica inacessivel quando a rede cai: o comando remoto /portal
+// depende justamente do Wi-Fi que deixou de funcionar.
+const uint16_t WIFI_FALLBACK_S = 300;
 
 // --- Broker MQTT ------------------------------------------------------------
 const char* MQTT_HOST = "broker.hivemq.com";

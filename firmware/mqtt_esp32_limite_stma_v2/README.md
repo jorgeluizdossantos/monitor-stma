@@ -33,6 +33,9 @@ dispositivo pelo portal local. Trocar de rede não exige recompilar nem regravar
 3. Ao salvar, as credenciais vão para a NVS e o dispositivo entra na rede normalmente.
 4. Se ninguém configurar em `PORTAL_TIMEOUT_S` segundos, o portal se fecha, o
    dispositivo reinicia e volta ao modo normal. O portal nunca fica aberto sem limite.
+5. Se o dispositivo perder a rede depois de já configurado, ele reinicia e reabre o
+   portal automaticamente após `WIFI_FALLBACK_S` segundos sem Wi-Fi. Isso evita o
+   beco sem saída: o comando remoto `/portal` depende justamente do Wi-Fi que caiu.
 
 ### Reconfigurar sem acesso físico
 

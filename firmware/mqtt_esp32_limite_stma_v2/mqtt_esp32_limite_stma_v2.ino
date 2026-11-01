@@ -20,7 +20,7 @@ String lastCommand;
 bool ledOn = false, automatic = false, above = false, reevaluate = false;
 bool portalRequested = false;
 float threshold = 0;
-unsigned long lastSample = 0, lastReconnect = 0, lastWifi = 0;
+unsigned long lastSample = 0, lastReconnect = 0, semWifiDesde = 0;
 void publishControl();
 void abrirRede();
 
@@ -163,6 +163,16 @@ void abrirRede() {
     delay(1000); ESP.restart();
   }
 }
+// Grava o pedido na NVS e reinicia: no boot o portal e aberto no lugar da
+// conexao normal.
+void reiniciarComPortal(const char* motivo) {
+  prefs.begin("stma", false);
+  prefs.putBool("portal", true);
+  prefs.end();
+  Serial.println(motivo);
+  delay(200);
+  ESP.restart();
+}
 void setup() {
   Serial.begin(115200);
   pinMode(LED_PIN, OUTPUT); digitalWrite(LED_PIN, LOW);
@@ -190,23 +200,24 @@ void setup() {
 void loop() {
   const unsigned long now = millis();
   if (WiFi.status() != WL_CONNECTED) {
-    if (now - lastWifi >= 10000) { lastWifi = now; WiFi.reconnect(); }
+    // A reconexao e feita pelo proprio ESP32 (setAutoReconnect). Chamar
+    // WiFi.reconnect() aqui a cada 10s gerava "sta is connecting, return error".
+    if (semWifiDesde == 0) semWifiDesde = now;
+    else if (now - semWifiDesde >= WIFI_FALLBACK_S * 1000UL) {
+      reiniciarComPortal("Sem Wi-Fi; reabrindo o portal de configuracao");
+    }
     delay(5); return;
   }
+  semWifiDesde = 0;
   if (!mqtt.connected()) { reconnect(now); delay(5); return; }
   mqtt.loop();
   if (portalRequested) {
-    // Marca o pedido na NVS e reinicia: no boot o portal e aberto no lugar
-    // da conexao normal. O status fica offline para o painel nao exibir
-    // o dispositivo como online enquanto o portal esta aberto.
+    // O status fica offline para o painel nao exibir o dispositivo como
+    // online enquanto o portal esta aberto.
     portalRequested = false;
-    prefs.begin("stma", false);
-    prefs.putBool("portal", true);
-    prefs.end();
     publish(baseTopic + "/status", "offline", true);
     mqtt.disconnect();
-    Serial.println("Reiniciando para configurar a rede");
-    delay(200); ESP.restart(); return;
+    reiniciarComPortal("Reiniciando para configurar a rede");
   }
   if (now - lastSample < SAMPLE_MS) { delay(1); return; }
   lastSample = now;

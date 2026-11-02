@@ -7,10 +7,12 @@
 //    sem criar leitura;
 //  - inserir em `leitura_telemetria` de forma idempotente (uq_leitura_disp_tempo);
 //  - atualizar o cache da ultima leitura do dispositivo;
+//  - consolidar o resumo da hora em `leitura_hora` (ver `hourly.js`);
 //  - conciliar os alertas de conformidade daquele ambiente (ver `alerts.js`).
 
 const { queryOne, execute } = require('../config/db');
 const { conciliarAlertas } = require('./alerts');
+const { consolidarHora } = require('./hourly');
 
 const LIMITES = {
   temperatura: { min: 0, max: 50 },
@@ -124,18 +126,21 @@ async function registrarLeitura({ deviceId, temperatura, umidade, medidoEm }) {
     [agora, medido, temp, umid, dispositivo.id]
   );
 
-  // Leitura repetida nao e reavaliada: o estado dos alertas ja reflete essa leitura
-  // e reabri-lo poderia ressuscitar um episodio ja encerrado por leitura posterior.
-  const alertas = gravada
-    ? await conciliarAlertas({
-        ambienteId: dispositivo.ambiente_id,
-        dispositivoId: dispositivo.id,
-        leituraId,
-        temperatura: temp,
-        umidade: umid,
-        medidoEm: medido
-      })
-    : [];
+  // Leitura repetida nao e reavaliada: o estado derivado ja reflete essa leitura —
+  // no caso dos alertas, reabri-lo ressuscitaria um episodio encerrado por leitura
+  // posterior.
+  let alertas = [];
+  if (gravada) {
+    await consolidarHora(dispositivo.ambiente_id, medido);
+    alertas = await conciliarAlertas({
+      ambienteId: dispositivo.ambiente_id,
+      dispositivoId: dispositivo.id,
+      leituraId,
+      temperatura: temp,
+      umidade: umid,
+      medidoEm: medido
+    });
+  }
 
   return {
     resultado: gravada ? 'gravada' : 'duplicada',

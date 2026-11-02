@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { pingDatabase } = require('../config/db');
 const authRouter = require('./auth');
 const compatRouter = require('./compat');
+const telemetryRouter = require('./telemetry');
 
 const router = Router();
 
@@ -32,5 +33,6 @@ router.get('/health/db', async (req, res) => {
 
 router.use(authRouter);
 router.use(compatRouter);
+router.use(telemetryRouter);
 
 module.exports = router;

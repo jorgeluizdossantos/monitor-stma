@@ -6,9 +6,11 @@
 //  - registrar em `dispositivo_pendente` quando o dispositivo nao esta cadastrado,
 //    sem criar leitura;
 //  - inserir em `leitura_telemetria` de forma idempotente (uq_leitura_disp_tempo);
-//  - atualizar o cache da ultima leitura do dispositivo.
+//  - atualizar o cache da ultima leitura do dispositivo;
+//  - conciliar os alertas de conformidade daquele ambiente (ver `alerts.js`).
 
 const { queryOne, execute } = require('../config/db');
+const { conciliarAlertas } = require('./alerts');
 
 const LIMITES = {
   temperatura: { min: 0, max: 50 },
@@ -95,14 +97,16 @@ async function registrarLeitura({ deviceId, temperatura, umidade, medidoEm }) {
     return { resultado: 'pendente', deviceId: id };
   }
 
+  let leituraId = null;
   let gravada = true;
   try {
-    await execute(
+    const resultado = await execute(
       `INSERT INTO leitura_telemetria
          (dispositivo_id, ambiente_id, temperatura_c, umidade_pct, medido_em)
        VALUES (?, ?, ?, ?, ?)`,
       [dispositivo.id, dispositivo.ambiente_id, temp, umid, medido]
     );
+    leituraId = resultado.insertId;
   } catch (erro) {
     // uq_leitura_disp_tempo: a mesma leitura (dispositivo + instante) nao duplica.
     if (erro.code !== 'ER_DUP_ENTRY') throw erro;
@@ -120,11 +124,25 @@ async function registrarLeitura({ deviceId, temperatura, umidade, medidoEm }) {
     [agora, medido, temp, umid, dispositivo.id]
   );
 
+  // Leitura repetida nao e reavaliada: o estado dos alertas ja reflete essa leitura
+  // e reabri-lo poderia ressuscitar um episodio ja encerrado por leitura posterior.
+  const alertas = gravada
+    ? await conciliarAlertas({
+        ambienteId: dispositivo.ambiente_id,
+        dispositivoId: dispositivo.id,
+        leituraId,
+        temperatura: temp,
+        umidade: umid,
+        medidoEm: medido
+      })
+    : [];
+
   return {
     resultado: gravada ? 'gravada' : 'duplicada',
     deviceId: id,
     dispositivoId: dispositivo.id,
-    ambienteId: dispositivo.ambiente_id
+    ambienteId: dispositivo.ambiente_id,
+    alertas
   };
 }
 

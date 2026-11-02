@@ -47,6 +47,24 @@ inacessível de forma permanente.
 > No broker público qualquer terceiro pode publicar nesse tópico. O timeout limita o
 > efeito, mas não elimina o risco: ele desaparece quando a variante TLS for adotada.
 
+## Validação em bancada
+
+Cenários executados em 2026-11-02 com a placa `esp32-a8032a1e7214`, com os valores
+`WIFI_FALLBACK_S=300` e `PORTAL_TIMEOUT_S=180`:
+
+| Cenário | Procedimento | Resultado |
+| --- | --- | --- |
+| Queda de rede | Desligar o roteador com o dispositivo conectado e aguardar | Aprovado. Após `WIFI_FALLBACK_S`, o dispositivo reinicia e reabre o AP `STMA-esp32-a8032a1e7214`; a página abre em `http://192.168.4.1` |
+| Timeout do portal | Abrir o portal e não configurar nada | Aprovado. O portal se fecha em `PORTAL_TIMEOUT_S`, o dispositivo reinicia e volta ao modo normal |
+| Reconfiguração remota | Publicar `1` em `stma/esp32-a8032a1e7214/portal` | Aprovado. O status vai para `offline` (retido), o dispositivo reinicia e sobe o portal |
+
+> No teste de queda de rede, não conclua antes de o dispositivo reiniciar: durante a
+> contagem de `WIFI_FALLBACK_S` o Monitor Serial fica em silêncio, porque o `loop()`
+> retorna antes de qualquer publicação. Verifique também que o celular não está
+> reconectando a uma entrada salva do AP de um teste anterior — ela aparece na lista
+> mesmo sem o dispositivo estar transmitindo. Com a rede sem internet, desligue os
+> dados móveis: o sistema pode manter o 4G como rota padrão e a página não abre.
+
 ## Contrato
 
 Prefixo padrão `stma/<device_id>`:

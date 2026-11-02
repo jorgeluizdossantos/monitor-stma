@@ -104,6 +104,7 @@
                         <button type="button" id="btn-fechar-detalhe" class="text-[13px] text-[#5f5f5d] hover:text-[#1c1c1c] transition-colors">Fechar</button>
                     </div>
                     <div id="detalhe-blocos" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+                    <div id="detalhe-historico" class="mt-4 space-y-4"></div>
                 </div>
 
                 <div id="pendentes-caixa" class="hidden bg-[#fffbeb] border border-[#fde68a] p-5 rounded-[12px]">
@@ -643,6 +644,7 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script>
         const APP_URL_PARAMS = new URLSearchParams(window.location.search);
         const APP_INITIAL_VIEW = APP_URL_PARAMS.get('view') || 'monitor';
@@ -1149,9 +1151,22 @@
         const MONITOR_BORDA_ATIVA = "border-[#8a8474]";
         const MONITOR_BORDA_INATIVA = "border-[#eceae4]";
 
+        // Bloco B7 — periodos do grafico de tendencia e estado do detalhe.
+        const MONITOR_PERIODOS = [
+            { chave: "24h", rotulo: "24 h", horas: 24 },
+            { chave: "7d", rotulo: "7 d", horas: 24 * 7 },
+            { chave: "30d", rotulo: "30 d", horas: 24 * 30 }
+        ];
+        const MONITOR_ESPERADO_FALHA = 0.8;
+
         let monitorTimer = null;
         let ambientesMonitor = [];
         let ambienteSelecionadoId = null;
+        let periodoDetalhe = "24h";
+        let graficoTendencia = null;
+        let intervaloLeituraDetalhe = 0;
+        let serieHorariaDetalhe = [];
+        let leiturasDetalhe = [];
 
         function escaparHtml(valor) {
             return String(valor ?? "").replace(/[&<>"']/g, (caractere) => ({
@@ -1365,11 +1380,13 @@
             return `± ${formatarNumero(valor)} ${sufixo}`;
         }
 
-        function renderizarDetalheAmbiente(atual, resumo, abertos, porta) {
+        function renderizarDetalheAmbiente(atual, resumo, alertas, porta) {
             const titulo = document.getElementById("detalhe-titulo");
             const subtitulo = document.getElementById("detalhe-subtitulo");
             const blocos = document.getElementById("detalhe-blocos");
             if (!blocos) return;
+
+            intervaloLeituraDetalhe = Number(atual?.intervalo_leitura_seg) || 0;
 
             if (titulo) titulo.textContent = atual?.ambiente || "Ambiente";
             if (subtitulo) {
@@ -1400,15 +1417,6 @@
                 linhaDetalhe("Alertas (24 h)", `${alertasResumo.total ?? 0} · ${alertasResumo.abertos ?? 0} aberto(s)`)
             ].join("");
 
-            const listaAbertos = abertos.length
-                ? abertos.map((alerta) => `
-                    <div class="mt-2 pt-2 border-t border-[#eceae4] text-[11px] text-[#5f5f5d]">
-                        ${escaparHtml(`${alerta.tipo} ${alerta.sentido} · ${alerta.severidade} · há ${formatarIntervalo(alerta.duracao_seg)}`)}
-                        (extremo ${formatarNumero(alerta.valor_extremo)}, limite ${formatarNumero(alerta.limite_violado)})
-                    </div>
-                `).join("")
-                : `<div class="mt-2 pt-2 border-t border-[#eceae4] text-[11px] text-[#5f5f5d]">Nenhum alerta aberto.</div>`;
-
             const portaConteudo = porta
                 ? [
                     linhaDetalhe("Estado", porta.porta_aberta === null
@@ -1424,8 +1432,9 @@
 
             blocos.innerHTML =
                 blocoDetalhe("Faixa ideal e ingestão", faixa) +
-                blocoDetalhe("Conformidade e alertas", conformidade + listaAbertos) +
-                blocoDetalhe("Porta", portaConteudo);
+                blocoDetalhe("Conformidade e alertas", conformidade) +
+                blocoDetalhe("Porta", portaConteudo) +
+                blocoAlertas(alertas);
         }
 
         async function carregarDetalheAmbiente(ambienteId, silencioso = false) {
@@ -1439,13 +1448,17 @@
             }
 
             try {
-                const [atual, resumo, abertos, porta] = await Promise.all([
+                const [atual, resumo, alertas, porta] = await Promise.all([
                     lerApi(`/api/telemetria/atual?ambiente_id=${encodeURIComponent(ambienteId)}`),
                     lerApi(`/api/alertas/resumo?ambiente_id=${encodeURIComponent(ambienteId)}`),
-                    lerApi(`/api/alertas?abertos=1&ambiente_id=${encodeURIComponent(ambienteId)}`),
+                    lerApi(`/api/alertas?ambiente_id=${encodeURIComponent(ambienteId)}&limite=50`),
                     lerApi(`/api/porta/resumo?ambiente_id=${encodeURIComponent(ambienteId)}`)
                 ]);
-                renderizarDetalheAmbiente(atual?.data, resumo?.data, abertos?.data || [], porta?.data);
+                renderizarDetalheAmbiente(atual?.data, resumo?.data, alertas?.data || [], porta?.data);
+
+                // A serie e a tabela do periodo sao mais pesadas e nao mudam a cada 30 s:
+                // so recarregam quando o ambiente abre ou o periodo e trocado.
+                if (!silencioso) await carregarHistoricoAmbiente(ambienteId);
             } catch (err) {
                 blocos.innerHTML = `<div class="md:col-span-3 text-[13px] text-red-700">${escaparHtml(err.message)}</div>`;
             }
@@ -1461,6 +1474,15 @@
             ambienteSelecionadoId = null;
             const caixa = document.getElementById("ambiente-detalhe");
             if (caixa) caixa.classList.add("hidden");
+
+            // A serie e o grafico sao do ambiente que estava aberto: saem junto com ele.
+            const historico = document.getElementById("detalhe-historico");
+            if (historico) historico.innerHTML = "";
+            if (graficoTendencia) {
+                graficoTendencia.destroy();
+                graficoTendencia = null;
+            }
+
             renderizarGradeAmbientes();
         }
 
@@ -1483,6 +1505,398 @@
 
         const btnFecharDetalhe = document.getElementById("btn-fechar-detalhe");
         if (btnFecharDetalhe) btnFecharDetalhe.addEventListener("click", fecharDetalheAmbiente);
+
+        // Bloco B7 — tendencia do P3, lista de alertas com reconhecer, detalhe paginado e
+        // exportacao CSV. Tudo dentro do ambiente aberto no detalhe: nenhuma varredura por
+        // ambiente e nenhuma rota nova — so as do B5.
+
+        function periodoSelecionado() {
+            return MONITOR_PERIODOS.find((item) => item.chave === periodoDetalhe) || MONITOR_PERIODOS[0];
+        }
+
+        function formatarRotuloHora(valorUtc) {
+            if (!valorUtc) return "-";
+            const data = new Date(valorUtc);
+            if (isNaN(data.getTime())) return "-";
+            const opcoes = periodoSelecionado().horas > 48
+                ? { day: "2-digit", month: "2-digit", hour: "2-digit" }
+                : { hour: "2-digit", minute: "2-digit" };
+            return data.toLocaleString("pt-BR", opcoes);
+        }
+
+        function botoesPeriodoHtml() {
+            return MONITOR_PERIODOS.map((periodo) => {
+                const ativo = periodo.chave === periodoDetalhe;
+                const classes = ativo
+                    ? "border-[#8a8474] bg-[#eceae4] text-[#1c1c1c]"
+                    : "border-[#d8d3c8] bg-white/50 text-[#5f5f5d] hover:bg-white";
+                return `<button type="button" onclick="definirPeriodo('${periodo.chave}')" class="px-2.5 py-1 border rounded-[6px] text-[12px] font-mono-tech transition-colors ${classes}">${escaparHtml(periodo.rotulo)}</button>`;
+            }).join("");
+        }
+
+        function definirPeriodo(chave) {
+            if (!MONITOR_PERIODOS.some((periodo) => periodo.chave === chave)) return;
+            if (chave === periodoDetalhe) return;
+            periodoDetalhe = chave;
+            if (ambienteSelecionadoId !== null) carregarHistoricoAmbiente(ambienteSelecionadoId);
+        }
+
+        // O `leitor` so consulta: a rota devolve 403 e o botao nem aparece (RF015).
+        function podeReconhecerAlerta() {
+            const perfil = String(usuarioAtual?.perfil || "").toLowerCase();
+            return ["superadmin", "administrador", "operador"].includes(perfil);
+        }
+
+        function linhaAlerta(alerta) {
+            const aberto = Number(alerta.aberto) === 1;
+            const reconhecido = Boolean(alerta.reconhecido_utc);
+            const mapa = {
+                atencao: "bg-amber-50 border-amber-200 text-amber-700",
+                critico: "bg-red-50 border-red-200 text-red-700"
+            };
+            const classeSeveridade = mapa[String(alerta.severidade || "").toLowerCase()]
+                || "bg-[#eceae4] border-[#d8d3c8] text-[#5f5f5d]";
+
+            const detalhe = [
+                `${alerta.tipo} ${alerta.sentido}`,
+                `extremo ${formatarNumero(alerta.valor_extremo)}`,
+                `limite ${formatarNumero(alerta.limite_violado)}`,
+                aberto ? `aberto há ${formatarIntervalo(alerta.duracao_seg)}` : `durou ${formatarIntervalo(alerta.duracao_seg)}`,
+                `desde ${formatarDataLocal(alerta.ocorrido_utc)}`
+            ].join(" · ");
+
+            const acao = aberto && !reconhecido && podeReconhecerAlerta()
+                ? `<button type="button" onclick="reconhecerAlerta(${Number(alerta.id)})" class="shrink-0 px-2.5 py-1 border border-[#d8d3c8] rounded-[6px] text-[11px] font-medium bg-white/50 hover:bg-white transition-colors">Reconhecer</button>`
+                : (reconhecido
+                    ? `<span class="shrink-0 text-[11px] font-mono-tech text-[#5f5f5d]">reconhecido ${escaparHtml(formatarDataLocal(alerta.reconhecido_utc))}</span>`
+                    : "");
+
+            return `
+                <div class="flex flex-wrap justify-between items-start gap-3 bg-[#f7f4ed] border border-[#eceae4] rounded-[8px] px-3 py-2">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            ${selo(String(alerta.severidade || "-"), classeSeveridade)}
+                            ${aberto ? selo("Em aberto", "bg-amber-50 border-amber-200 text-amber-700") : ""}
+                        </div>
+                        <div class="text-[11px] font-mono-tech text-[#5f5f5d] mt-1">${escaparHtml(detalhe)}</div>
+                    </div>
+                    ${acao}
+                </div>
+            `;
+        }
+
+        function blocoAlertas(alertas) {
+            const lista = Array.isArray(alertas) ? alertas : [];
+            const abertos = lista.filter((alerta) => Number(alerta.aberto) === 1).length;
+
+            const conteudo = lista.length
+                ? lista.map(linhaAlerta).join("")
+                : `<div class="text-[12px] font-mono-tech text-[#5f5f5d]">Nenhum alerta registrado para este ambiente.</div>`;
+
+            return `
+                <div class="md:col-span-3 bg-white/50 border border-[#eceae4] rounded-[12px] p-4">
+                    <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
+                        <div class="text-[11px] font-bold uppercase tracking-wider text-[#5f5f5d]">Alertas</div>
+                        <div class="text-[11px] font-mono-tech text-[#5f5f5d]">${lista.length} episódio(s) · ${abertos} aberto(s)</div>
+                    </div>
+                    <div class="space-y-2" style="max-height: 320px; overflow: auto;">${conteudo}</div>
+                </div>
+            `;
+        }
+
+        async function reconhecerAlerta(alertaId) {
+            try {
+                const resposta = await fetch(`/api/alertas/${Number(alertaId)}/reconhecer`, { method: "POST" });
+                if (!resposta.ok) {
+                    const corpo = await resposta.json().catch(() => null);
+                    throw new Error(corpo?.error || `Falha ao reconhecer o alerta ${alertaId}.`);
+                }
+                if (ambienteSelecionadoId !== null) carregarDetalheAmbiente(ambienteSelecionadoId, true);
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        function montarGraficoTendencia(pontos) {
+            const canvas = document.getElementById("grafico-tendencia");
+            if (!canvas) return;
+
+            if (typeof Chart === "undefined") {
+                const aviso = document.getElementById("grafico-aviso");
+                if (aviso) aviso.textContent = "O Chart.js não carregou (CDN indisponível) — os números estão na tabela abaixo.";
+                return;
+            }
+
+            const rotulos = pontos.map((ponto) => formatarRotuloHora(ponto.hora_utc));
+            const comoNumero = (valor) => (valor === null || valor === undefined ? null : Number(valor));
+            const esperadoHora = intervaloLeituraDetalhe > 0 ? 3600 / intervaloLeituraDetalhe : null;
+            const coletaFalha = (ponto) => Boolean(esperadoHora && Number(ponto.qtd_leituras) < esperadoHora * MONITOR_ESPERADO_FALHA);
+            const serie = (campo) => pontos.map((ponto) => comoNumero(ponto[campo]));
+            const faixa = "rgba(239,68,68,0)";
+
+            graficoTendencia = new Chart(canvas.getContext("2d"), {
+                type: "line",
+                data: {
+                    labels: rotulos,
+                    datasets: [
+                        // A faixa min-max e a area entre dois datasets: o segundo preenche ate o primeiro.
+                        {
+                            label: "Temp. mín.",
+                            data: serie("temp_min"),
+                            borderColor: faixa,
+                            backgroundColor: "rgba(239,68,68,0.12)",
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.25,
+                            yAxisID: "y"
+                        },
+                        {
+                            label: "Temp. máx.",
+                            data: serie("temp_max"),
+                            borderColor: faixa,
+                            backgroundColor: "rgba(239,68,68,0.12)",
+                            pointRadius: 0,
+                            fill: "-1",
+                            tension: 0.25,
+                            yAxisID: "y"
+                        },
+                        {
+                            label: "Temp. média (°C)",
+                            data: serie("temp_media"),
+                            borderColor: "#ef4444",
+                            backgroundColor: "#b45309",
+                            borderWidth: 2,
+                            pointRadius: pontos.map((ponto) => (coletaFalha(ponto) ? 3.5 : 0)),
+                            tension: 0.25,
+                            fill: false,
+                            yAxisID: "y"
+                        },
+                        {
+                            label: "Umid. mín.",
+                            data: serie("umid_min"),
+                            borderColor: "rgba(59,130,246,0)",
+                            backgroundColor: "rgba(59,130,246,0.10)",
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.25,
+                            yAxisID: "y1"
+                        },
+                        {
+                            label: "Umid. máx.",
+                            data: serie("umid_max"),
+                            borderColor: "rgba(59,130,246,0)",
+                            backgroundColor: "rgba(59,130,246,0.10)",
+                            pointRadius: 0,
+                            fill: "-1",
+                            tension: 0.25,
+                            yAxisID: "y1"
+                        },
+                        {
+                            label: "Umid. média (%)",
+                            data: serie("umid_media"),
+                            borderColor: "#3b82f6",
+                            backgroundColor: "#3b82f6",
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.25,
+                            fill: false,
+                            yAxisID: "y1"
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: "index", intersect: false },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                boxWidth: 12,
+                                filter: (item) => !item.text.includes("mín.") && !item.text.includes("máx.")
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterBody: (itens) => {
+                                    const indice = itens[0]?.dataIndex;
+                                    const ponto = indice === undefined ? null : pontos[indice];
+                                    return ponto ? `${ponto.qtd_leituras} leitura(s) nesta hora` : "";
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { position: "left", title: { display: true, text: "°C" } },
+                        y1: { position: "right", title: { display: true, text: "%" }, grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+        }
+
+        function renderizarHistorico(serie, leituras) {
+            const caixa = document.getElementById("detalhe-historico");
+            if (!caixa) return;
+
+            // O canvas e recriado a cada render: sem destruir o grafico anterior o Chart.js
+            // recusa o mesmo canvas ("Canvas is already in use").
+            if (graficoTendencia) {
+                graficoTendencia.destroy();
+                graficoTendencia = null;
+            }
+
+            const pontos = serie;
+            const esperadoHora = intervaloLeituraDetalhe > 0 ? Math.round(3600 / intervaloLeituraDetalhe) : null;
+            const falhas = pontos.filter(
+                (ponto) => esperadoHora && Number(ponto.qtd_leituras) < esperadoHora * MONITOR_ESPERADO_FALHA
+            ).length;
+
+            const resumoSerie = pontos.length
+                ? `${pontos.length} hora(s) no período · ${falhas} com coleta incompleta${esperadoHora ? ` (esperado ~${esperadoHora} leituras/h)` : ""}`
+                : "Sem consolidado horário no período — a telemetria bruta continua na tabela abaixo.";
+
+            const linhasTabela = leituras.length
+                ? leituras.map((linha) => `
+                    <tr class="border-t border-[#eceae4]">
+                        <td class="py-1.5 pr-3 whitespace-nowrap">${escaparHtml(formatarDataLocal(linha.medido_utc))}</td>
+                        <td class="py-1.5 pr-3 text-right">${formatarNumero(linha.temperatura_c)}</td>
+                        <td class="py-1.5 pr-3 text-right">${formatarNumero(linha.umidade_pct)}</td>
+                        <td class="py-1.5 text-right text-[#5f5f5d]">${escaparHtml(formatarIntervalo(linha.atraso_seg))}</td>
+                    </tr>
+                `).join("")
+                : `<tr><td colspan="4" class="py-3 text-[#5f5f5d]">Nenhuma leitura no período.</td></tr>`;
+
+            caixa.innerHTML = `
+                <div class="flex flex-wrap justify-between items-center gap-3">
+                    <h5 class="text-[11px] font-bold uppercase tracking-wider text-[#5f5f5d]">Tendência</h5>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="flex items-center gap-1">${botoesPeriodoHtml()}</div>
+                        <button type="button" onclick="exportarSerieCsv()" class="px-3 py-1.5 border border-[#d8d3c8] rounded-[6px] text-[12px] font-medium bg-white/50 hover:bg-white transition-colors">Exportar série (CSV)</button>
+                    </div>
+                </div>
+
+                <div class="bg-white/50 border border-[#eceae4] rounded-[12px] p-4">
+                    <div style="height: 260px;"><canvas id="grafico-tendencia"></canvas></div>
+                    <div id="grafico-aviso" class="text-[11px] font-mono-tech text-[#92400e] mt-2"></div>
+                    <div id="grafico-info" class="text-[11px] font-mono-tech text-[#5f5f5d] mt-1">${escaparHtml(resumoSerie)}</div>
+                </div>
+
+                <div class="bg-white/50 border border-[#eceae4] rounded-[12px] p-4">
+                    <div class="flex flex-wrap justify-between items-center gap-3 mb-3">
+                        <div class="text-[11px] font-bold uppercase tracking-wider text-[#5f5f5d]">Leituras do período</div>
+                        <button type="button" onclick="exportarLeiturasCsv()" class="px-3 py-1.5 border border-[#d8d3c8] rounded-[6px] text-[12px] font-medium bg-white/50 hover:bg-white transition-colors">Exportar leituras (CSV)</button>
+                    </div>
+                    <div style="max-height: 280px; overflow: auto;">
+                        <table class="w-full text-[12px] font-mono-tech text-[#1c1c1c]">
+                            <thead>
+                                <tr class="text-[10px] uppercase text-[#5f5f5d] text-left">
+                                    <th class="pb-2 pr-3 font-bold">Medido em</th>
+                                    <th class="pb-2 pr-3 font-bold text-right">°C</th>
+                                    <th class="pb-2 pr-3 font-bold text-right">%</th>
+                                    <th class="pb-2 font-bold text-right">Atraso</th>
+                                </tr>
+                            </thead>
+                            <tbody>${linhasTabela}</tbody>
+                        </table>
+                    </div>
+                    <div class="text-[11px] font-mono-tech text-[#5f5f5d] mt-2">${leituras.length} leitura(s) mais recentes do período (limite de consulta).</div>
+                </div>
+            `;
+
+            montarGraficoTendencia(pontos);
+        }
+
+        async function carregarHistoricoAmbiente(ambienteId) {
+            const caixa = document.getElementById("detalhe-historico");
+            if (!caixa) return;
+
+            caixa.innerHTML = `<div class="text-[13px] text-[#5f5f5d]">A carregar tendência e leituras do período...</div>`;
+
+            // `de`/`ate` vao em UTC; o recorte e sempre relativo a agora, na janela do periodo.
+            const periodo = periodoSelecionado();
+            const ate = new Date();
+            const de = new Date(ate.getTime() - periodo.horas * 3600000);
+            const recorte = [
+                `ambiente_id=${encodeURIComponent(ambienteId)}`,
+                `de=${encodeURIComponent(de.toISOString())}`,
+                `ate=${encodeURIComponent(ate.toISOString())}`
+            ].join("&");
+
+            try {
+                const [serie, leituras] = await Promise.all([
+                    lerApi(`/api/telemetria/historico?${recorte}&bucket=hora`),
+                    lerApi(`/api/telemetria/historico?${recorte}&bucket=leitura&limite=200`)
+                ]);
+                serieHorariaDetalhe = Array.isArray(serie?.data) ? serie.data : [];
+                leiturasDetalhe = Array.isArray(leituras?.data) ? leituras.data : [];
+                renderizarHistorico(serieHorariaDetalhe, leiturasDetalhe);
+            } catch (err) {
+                caixa.innerHTML = `<div class="text-[13px] text-red-700">${escaparHtml(err.message)}</div>`;
+            }
+        }
+
+        // CSV montado no proprio navegador a partir do que a rota devolveu: sem rota nova,
+        // e com o mesmo `_utc` que veio do banco (a planilha mostra o instante gravado).
+        function baixarCsv(nomeArquivo, cabecalho, linhas) {
+            const escaparCampo = (valor) => {
+                const texto = valor === null || valor === undefined ? "" : String(valor);
+                return /[";\r\n]/.test(texto) ? `"${texto.replace(/"/g, '""')}"` : texto;
+            };
+            const conteudo = "\uFEFF" + [cabecalho, ...linhas]
+                .map((linha) => linha.map(escaparCampo).join(";"))
+                .join("\r\n");
+
+            const blob = new Blob([conteudo], { type: "text/csv;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = nomeArquivo;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        function nomeArquivoCsv(sufixo) {
+            const ambiente = ambientesMonitor.find(
+                (linha) => Number(linha.ambiente_id) === Number(ambienteSelecionadoId)
+            );
+            const apelido = String(ambiente?.ambiente || `ambiente-${ambienteSelecionadoId}`)
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-|-$/g, "");
+            return `stma-${apelido}-${periodoSelecionado().chave}-${sufixo}.csv`;
+        }
+
+        function exportarSerieCsv() {
+            if (!serieHorariaDetalhe.length) {
+                alert("Não há série horária no período para exportar.");
+                return;
+            }
+            baixarCsv(
+                nomeArquivoCsv("serie"),
+                ["hora_utc", "qtd_leituras", "temp_media", "temp_min", "temp_max", "umid_media", "umid_min", "umid_max"],
+                serieHorariaDetalhe.map((ponto) => [
+                    ponto.hora_utc, ponto.qtd_leituras, ponto.temp_media, ponto.temp_min, ponto.temp_max,
+                    ponto.umid_media, ponto.umid_min, ponto.umid_max
+                ])
+            );
+        }
+
+        function exportarLeiturasCsv() {
+            if (!leiturasDetalhe.length) {
+                alert("Não há leituras no período para exportar.");
+                return;
+            }
+            baixarCsv(
+                nomeArquivoCsv("leituras"),
+                ["medido_utc", "recebido_utc", "temperatura_c", "umidade_pct", "atraso_seg"],
+                leiturasDetalhe.map((linha) => [
+                    linha.medido_utc, linha.recebido_utc, linha.temperatura_c, linha.umidade_pct, linha.atraso_seg
+                ])
+            );
+        }
 
         function limparFormularioUsuario() {
             document.getElementById('usr_id').value = '';

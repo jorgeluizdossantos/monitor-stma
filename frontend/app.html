@@ -918,7 +918,7 @@
         }
 
         const BROKER_URL = "wss://broker.hivemq.com:8884/mqtt";
-        const TOPICOS = ["stma/+/dados", "stma/temperatura", "stma/umidade", "stma/porta", "stma/led", "stma/limite_atual"];
+        const TOPICOS = ["stma/+/dados", "stma/+/porta", "stma/temperatura", "stma/umidade", "stma/porta", "stma/led", "stma/limite_atual"];
         const TOPICO_COMANDO = "stma/publisher";
         const TOPICO_LIMITE = "stma/limite";
 
@@ -1029,9 +1029,14 @@
                 atualizarCard("umidade", isNaN(v) ? "Leitura inválida" : v.toFixed(1) + " %");
             }
 
-            if (topico === "stma/porta") {
+            if (topico === "stma/porta" || /^stma\/[^/]+\/porta$/.test(topico)) {
                 const fechada = /fechada/i.test(texto);
                 atualizarCard("porta", fechada ? "Fechada" : "Aberta");
+
+                // Só o tópico por dispositivo é gravado: o global repete o mesmo
+                // evento e as duas requisições concorrentes criariam linhas duplicadas.
+                const porDispositivo = /^stma\/([^/]+)\/porta$/.exec(topico);
+                if (porDispositivo) enviarPortaParaAiven(porDispositivo[1], !fechada);
             }
 
             if (topico === "stma/led") {
@@ -1089,6 +1094,16 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(medicao)
+                });
+            } catch (err) {}
+        }
+
+        async function enviarPortaParaAiven(deviceId, aberta) {
+            try {
+                await fetch('/api/porta', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device_id: deviceId, aberta })
                 });
             } catch (err) {}
         }

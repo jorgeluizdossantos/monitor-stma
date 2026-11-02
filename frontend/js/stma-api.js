@@ -167,6 +167,10 @@ window.STMA = (() => {
     return request('/medicoes', { method: 'POST', body });
   }
 
+  async function registrarPorta(body) {
+    return request('/porta', { method: 'POST', body });
+  }
+
   return {
     request,
     login,
@@ -178,6 +182,7 @@ window.STMA = (() => {
     cadastrarSetor,
     cadastrarEquipamento,
     registrarMedicao,
+    registrarPorta,
     getApiBase,
     setApiBase,
     getEmpresaFiltro,

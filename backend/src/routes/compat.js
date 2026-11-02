@@ -3,6 +3,7 @@ const { query, queryOne, execute } = require('../config/db');
 const { requireAuth } = require('../auth/session');
 const { hashPassword } = require('../security/password');
 const { registrarLeitura } = require('../telemetry/ingest');
+const { registrarPorta } = require('../telemetry/door');
 
 const router = Router();
 
@@ -1289,6 +1290,40 @@ router.post('/medicoes', requireAuth, async (req, res, next) => {
         leitura.resultado === 'gravada'
           ? 'Medição gravada com sucesso!'
           : 'Medição já registrada; nada a gravar.'
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/porta', requireAuth, async (req, res, next) => {
+  try {
+    const { device_id, aberta, medido_em } = req.body || {};
+
+    const evento = await registrarPorta({ deviceId: device_id, aberta, medidoEm: medido_em });
+
+    if (evento.resultado === 'invalido') {
+      return res.status(400).json({ ok: false, error: evento.motivo });
+    }
+
+    if (evento.resultado === 'pendente') {
+      return res.status(202).json({
+        ok: true,
+        pendente: true,
+        device_id: evento.deviceId,
+        message: 'Dispositivo não cadastrado: evento de porta ignorado.'
+      });
+    }
+
+    return res.status(evento.resultado === 'gravado' ? 201 : 200).json({
+      ok: true,
+      inalterado: evento.resultado === 'inalterado',
+      dispositivo_id: evento.dispositivoId,
+      aberta: evento.aberta,
+      message:
+        evento.resultado === 'gravado'
+          ? 'Evento de porta gravado.'
+          : 'Estado da porta sem mudança; nada a gravar.'
     });
   } catch (error) {
     return next(error);

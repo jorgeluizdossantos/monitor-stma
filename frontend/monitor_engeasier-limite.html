@@ -208,7 +208,7 @@
   <script src="js/stma-api.js"></script>
   <script>
     const BROKER_URL = 'wss://broker.hivemq.com:8884/mqtt';
-    const TOPICOS = ['stma/+/dados', 'stma/temperatura', 'stma/umidade', 'stma/porta', 'stma/led', 'stma/limite_atual'];
+    const TOPICOS = ['stma/+/dados', 'stma/+/porta', 'stma/temperatura', 'stma/umidade', 'stma/porta', 'stma/led', 'stma/limite_atual'];
     const TOPICO_COMANDO = 'stma/publisher';
     const TOPICO_LIMITE = 'stma/limite';
 
@@ -253,6 +253,14 @@
         await STMA.registrarMedicao(medicao);
       } catch (error) {
         showMessage(error.message || 'Falha ao persistir medição na API.', 'error');
+      }
+    }
+
+    async function persistirPorta(evento) {
+      try {
+        await STMA.registrarPorta(evento);
+      } catch (error) {
+        showMessage(error.message || 'Falha ao persistir evento de porta na API.', 'error');
       }
     }
 
@@ -342,8 +350,14 @@
         updateCard('umidade', Number.isNaN(valor) ? 'Leitura inválida' : `${valor.toFixed(1)} %`);
       }
 
-      if (topico === 'stma/porta') {
-        updateCard('porta', /fechada/i.test(texto) ? 'Fechada' : 'Aberta');
+      if (topico === 'stma/porta' || /^stma\/[^/]+\/porta$/.test(topico)) {
+        const fechada = /fechada/i.test(texto);
+        updateCard('porta', fechada ? 'Fechada' : 'Aberta');
+
+        // Só o tópico por dispositivo é gravado: o global repete o mesmo evento e as
+        // duas requisições concorrentes criariam linhas duplicadas.
+        const porDispositivo = /^stma\/([^/]+)\/porta$/.exec(topico);
+        if (porDispositivo) persistirPorta({ device_id: porDispositivo[1], aberta: !fechada });
       }
 
       if (topico === 'stma/led') {

@@ -84,6 +84,35 @@
                 </div>
             </div>
 
+            <div class="space-y-4">
+                <div class="flex flex-wrap justify-between items-end gap-3">
+                    <div>
+                        <h3 class="text-[12px] font-bold tracking-wider text-[#1c1c1c] uppercase">Ambientes monitorados</h3>
+                        <div class="text-[11px] font-mono-tech text-[#5f5f5d] mt-1" id="ambientes-info">A carregar do banco...</div>
+                    </div>
+                    <button type="button" id="btn-atualizar-ambientes" class="px-3.5 py-2 border border-[#d8d3c8] rounded-[6px] text-[13px] font-medium bg-white/50 hover:bg-white transition-colors">Atualizar</button>
+                </div>
+
+                <div id="ambientes-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+
+                <div id="ambiente-detalhe" class="hidden bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] shadow-sm">
+                    <div class="flex flex-wrap justify-between items-start gap-3 mb-4">
+                        <div>
+                            <h4 class="text-[13px] font-bold text-[#1c1c1c]" id="detalhe-titulo">Ambiente</h4>
+                            <div class="text-[11px] font-mono-tech text-[#5f5f5d] mt-1" id="detalhe-subtitulo"></div>
+                        </div>
+                        <button type="button" id="btn-fechar-detalhe" class="text-[13px] text-[#5f5f5d] hover:text-[#1c1c1c] transition-colors">Fechar</button>
+                    </div>
+                    <div id="detalhe-blocos" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+                </div>
+
+                <div id="pendentes-caixa" class="hidden bg-[#fffbeb] border border-[#fde68a] p-5 rounded-[12px]">
+                    <h3 class="text-[12px] font-bold tracking-wider text-[#92400e] uppercase">Placas aguardando cadastro</h3>
+                    <div class="text-[11px] font-mono-tech text-[#92400e] mt-1 mb-3" id="pendentes-info"></div>
+                    <ul class="space-y-2" id="pendentes-lista"></ul>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div class="bg-[#f7f4ed] border border-[#eceae4] p-6 rounded-[12px] shadow-sm flex flex-col justify-between">
                     <div>
@@ -682,6 +711,7 @@
                 limparFormularioDispositivo();
                 limparFormularioEquipamento();
                 carregarEmpresaLogada(usuarioAtual.empresa_id);
+                iniciarMonitorBanco();
             } catch (err) {
                 console.error("Erro ao validar sessão:", err);
                 window.location.href = "login.html";
@@ -710,6 +740,7 @@
             if (aba === 'ambiente') carregarAmbientes();
             if (aba === 'dispositivo') carregarDispositivos();
             if (aba === 'equipamento') carregarEquipamentos();
+            if (aba === 'monitor' && monitorTimer) atualizarPainelDoBanco();
         }
 
         async function carregarEmpresaLogada(empresaId) {
@@ -1107,6 +1138,351 @@
                 });
             } catch (err) {}
         }
+
+        // Bloco B6 — cards por ambiente, lidos do banco.
+        //
+        // A grade usa `GET /api/dispositivos/status` (uma chamada para todos os ambientes) e o
+        // detalhe do ambiente selecionado chama as demais rotas sob demanda. Os cards MQTT
+        // acima continuam como estao: aqui e a leitura do que ficou gravado.
+
+        const MONITOR_REFRESH_MS = 30000;
+        const MONITOR_BORDA_ATIVA = "border-[#8a8474]";
+        const MONITOR_BORDA_INATIVA = "border-[#eceae4]";
+
+        let monitorTimer = null;
+        let ambientesMonitor = [];
+        let ambienteSelecionadoId = null;
+
+        function escaparHtml(valor) {
+            return String(valor ?? "").replace(/[&<>"']/g, (caractere) => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+            }[caractere]));
+        }
+
+        function formatarNumero(valor, casas = 1) {
+            const numero = Number(valor);
+            return isFinite(numero) && valor !== null && valor !== "" ? numero.toFixed(casas) : "-";
+        }
+
+        function formatarDataLocal(valorUtc) {
+            if (!valorUtc) return "-";
+            const data = new Date(valorUtc);
+            return isNaN(data.getTime()) ? "-" : data.toLocaleString("pt-BR");
+        }
+
+        function formatarIntervalo(segundos) {
+            const total = Number(segundos);
+            if (!isFinite(total) || total < 0) return "-";
+            if (total < 60) return `${Math.round(total)} s`;
+            if (total < 3600) return `${Math.floor(total / 60)} min`;
+            if (total < 86400) {
+                const horas = Math.floor(total / 3600);
+                const minutos = Math.floor((total % 3600) / 60);
+                return minutos ? `${horas} h ${minutos} min` : `${horas} h`;
+            }
+            const dias = Math.floor(total / 86400);
+            const horas = Math.floor((total % 86400) / 3600);
+            return horas ? `${dias} d ${horas} h` : `${dias} d`;
+        }
+
+        function selo(texto, classes) {
+            return `<span class="inline-block px-2 py-0.5 border rounded-full text-[11px] font-mono-tech ${classes}">${escaparHtml(texto)}</span>`;
+        }
+
+        function seloEstado(estado) {
+            const mapa = {
+                normal: ["Normal", "bg-emerald-50 border-emerald-200 text-emerald-700"],
+                atencao: ["Atenção", "bg-amber-50 border-amber-200 text-amber-700"],
+                critico: ["Crítico", "bg-red-50 border-red-200 text-red-700"],
+                sem_dados: ["Sem dados", "bg-[#eceae4] border-[#d8d3c8] text-[#5f5f5d]"]
+            };
+            const chave = String(estado || "").toLowerCase();
+            return mapa[chave] || [estado || "-", "bg-[#eceae4] border-[#d8d3c8] text-[#5f5f5d]"];
+        }
+
+        // As rotas nao filtram por empresa: o recorte e do painel, como no resto do app.
+        function filtrarPorEmpresa(linha) {
+            if (usuarioAtual?.isAdmin) return true;
+            const empresaId = usuarioAtual?.empresa_id;
+            if (!empresaId) return true;
+            return String(linha.empresa_id) === String(empresaId);
+        }
+
+        async function lerApi(caminho) {
+            const resposta = await fetch(caminho);
+            let corpo = null;
+            try {
+                corpo = await resposta.json();
+            } catch (err) {
+                corpo = null;
+            }
+            if (!resposta.ok) {
+                throw new Error(corpo?.error || corpo?.message || `Falha ao acessar ${caminho}.`);
+            }
+            return corpo;
+        }
+
+        function cartaoAmbiente(linha) {
+            const [textoEstado, classesEstado] = seloEstado(linha.estado);
+            const ativo = Number(linha.ambiente_id) === Number(ambienteSelecionadoId);
+
+            const selos = [
+                selo(linha.online ? "Online" : "Offline", linha.online
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-red-50 border-red-200 text-red-700")
+            ];
+            if (linha.em_manutencao) {
+                selos.push(selo("Manutenção", "bg-sky-50 border-sky-200 text-sky-700"));
+            }
+
+            const idade = linha.ultima_leitura_utc
+                ? `${formatarDataLocal(linha.ultima_leitura_utc)} (há ${formatarIntervalo(linha.idade_leitura_seg)})`
+                : "nenhuma leitura recebida";
+
+            return `
+                <button type="button" onclick="selecionarAmbiente(${Number(linha.ambiente_id)})"
+                        class="text-left w-full bg-[#f7f4ed] border ${ativo ? MONITOR_BORDA_ATIVA : MONITOR_BORDA_INATIVA} p-5 rounded-[12px] shadow-sm hover:border-[#c9c3b5] transition-colors">
+                    <div class="flex justify-between items-start gap-3">
+                        <div>
+                            <div class="text-[13px] font-bold text-[#1c1c1c]">${escaparHtml(linha.ambiente)}</div>
+                            <div class="text-[11px] font-mono-tech text-[#5f5f5d] mt-1">
+                                ${escaparHtml(linha.dispositivo || "Sem dispositivo cadastrado")}
+                            </div>
+                        </div>
+                        ${selo(textoEstado, classesEstado)}
+                    </div>
+                    <div class="flex items-end gap-5 mt-4">
+                        <div>
+                            <div class="text-[26px] font-bold font-mono-tech text-[#1c1c1c]">${formatarNumero(linha.temperatura_c)} °C</div>
+                            <div class="text-[10px] font-mono-tech uppercase text-[#5f5f5d] mt-1">Temperatura</div>
+                        </div>
+                        <div>
+                            <div class="text-[26px] font-bold font-mono-tech text-[#3b82f6]">${formatarNumero(linha.umidade_pct)} %</div>
+                            <div class="text-[10px] font-mono-tech uppercase text-[#5f5f5d] mt-1">Umidade</div>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mt-4">${selos.join("")}</div>
+                    <div class="text-[11px] font-mono-tech text-[#5f5f5d] mt-3">Última leitura: ${idade}</div>
+                </button>
+            `;
+        }
+
+        function renderizarGradeAmbientes() {
+            const grade = document.getElementById("ambientes-grid");
+            if (!grade) return;
+
+            if (!ambientesMonitor.length) {
+                grade.innerHTML = `<div class="md:col-span-2 xl:col-span-3 text-[13px] text-[#5f5f5d]">Nenhum ambiente para exibir.</div>`;
+                return;
+            }
+
+            grade.innerHTML = ambientesMonitor.map(cartaoAmbiente).join("");
+        }
+
+        async function carregarAmbientesMonitor() {
+            const info = document.getElementById("ambientes-info");
+            try {
+                const corpo = await lerApi("/api/dispositivos/status");
+                ambientesMonitor = (Array.isArray(corpo?.data) ? corpo.data : []).filter(filtrarPorEmpresa);
+                renderizarGradeAmbientes();
+
+                if (info) {
+                    info.style.color = "";
+                    info.textContent = ambientesMonitor.length
+                        ? `${ambientesMonitor.length} ambiente(s) · atualizado às ${new Date().toLocaleTimeString("pt-BR")}`
+                        : "Nenhum ambiente cadastrado.";
+                }
+
+                const selecionadoAinda = ambientesMonitor.some(
+                    (linha) => Number(linha.ambiente_id) === Number(ambienteSelecionadoId)
+                );
+                if (ambienteSelecionadoId !== null && !selecionadoAinda) {
+                    fecharDetalheAmbiente();
+                } else if (selecionadoAinda) {
+                    carregarDetalheAmbiente(ambienteSelecionadoId, true);
+                }
+            } catch (err) {
+                if (info) {
+                    info.style.color = "#b91c1c";
+                    info.textContent = err.message;
+                }
+            }
+        }
+
+        async function carregarDispositivosPendentes() {
+            const caixa = document.getElementById("pendentes-caixa");
+            const lista = document.getElementById("pendentes-lista");
+            const info = document.getElementById("pendentes-info");
+            if (!caixa || !lista) return;
+
+            try {
+                const corpo = await lerApi("/api/dispositivos/pendentes");
+                const pendentes = Array.isArray(corpo?.data) ? corpo.data : [];
+
+                if (!pendentes.length) {
+                    caixa.classList.add("hidden");
+                    return;
+                }
+
+                caixa.classList.remove("hidden");
+                if (info) {
+                    info.textContent = `${pendentes.length} placa(s) publicando sem cadastro — adote em Dispositivos para começar a gravar.`;
+                }
+                lista.innerHTML = pendentes.map((linha) => `
+                    <li class="bg-white/50 border border-[#fde68a] rounded-[8px] px-3 py-2 text-[12px] font-mono-tech text-[#92400e] flex flex-wrap justify-between gap-2">
+                        <span>${escaparHtml(linha.device_id)}</span>
+                        <span>${linha.qtd_mensagens} mensagem(ns) · último contato ${formatarDataLocal(linha.ultimo_contato_utc)}</span>
+                    </li>
+                `).join("");
+            } catch (err) {
+                caixa.classList.add("hidden");
+                console.error("Não foi possível ler as placas pendentes:", err);
+            }
+        }
+
+        function blocoDetalhe(titulo, conteudo) {
+            return `
+                <div class="bg-white/50 border border-[#eceae4] rounded-[12px] p-4">
+                    <div class="text-[11px] font-bold uppercase tracking-wider text-[#5f5f5d] mb-3">${escaparHtml(titulo)}</div>
+                    <div class="space-y-1.5 text-[12px] font-mono-tech text-[#1c1c1c]">${conteudo}</div>
+                </div>
+            `;
+        }
+
+        function linhaDetalhe(rotulo, valor) {
+            return `<div class="flex justify-between gap-3"><span class="text-[#5f5f5d]">${escaparHtml(rotulo)}</span><span class="text-right">${valor}</span></div>`;
+        }
+
+        function faixaTexto(minimo, maximo, sufixo) {
+            if (minimo === null || minimo === undefined || maximo === null || maximo === undefined) {
+                return "não definida";
+            }
+            return `${formatarNumero(minimo)} – ${formatarNumero(maximo)} ${sufixo}`;
+        }
+
+        function toleranciaTexto(valor, sufixo) {
+            if (valor === null || valor === undefined || valor === "") return "0 (crítico)";
+            return `± ${formatarNumero(valor)} ${sufixo}`;
+        }
+
+        function renderizarDetalheAmbiente(atual, resumo, abertos, porta) {
+            const titulo = document.getElementById("detalhe-titulo");
+            const subtitulo = document.getElementById("detalhe-subtitulo");
+            const blocos = document.getElementById("detalhe-blocos");
+            if (!blocos) return;
+
+            if (titulo) titulo.textContent = atual?.ambiente || "Ambiente";
+            if (subtitulo) {
+                const partes = [atual?.dispositivo || "Sem dispositivo cadastrado"];
+                if (atual?.device_id) partes.push(atual.device_id);
+                partes.push(`lido às ${new Date().toLocaleTimeString("pt-BR")}`);
+                subtitulo.textContent = partes.join(" · ");
+            }
+
+            const medicao = atual?.medicao || null;
+            const leituras = resumo?.leituras || {};
+            const alertasResumo = resumo?.alertas || {};
+
+            const faixa = [
+                linhaDetalhe("Temperatura ideal", escaparHtml(faixaTexto(atual?.temp_min_ideal, atual?.temp_max_ideal, "°C"))),
+                linhaDetalhe("Tolerância", escaparHtml(toleranciaTexto(atual?.temp_tolerancia, "°C"))),
+                linhaDetalhe("Umidade ideal", escaparHtml(faixaTexto(atual?.umid_min_ideal, atual?.umid_max_ideal, "%"))),
+                linhaDetalhe("Tolerância", escaparHtml(toleranciaTexto(atual?.umid_tolerancia, "%"))),
+                linhaDetalhe("Última medição", formatarDataLocal(medicao?.medido_utc)),
+                linhaDetalhe("Atraso de ingestão", medicao ? formatarIntervalo(medicao.atraso_seg) : "sem leitura")
+            ].join("");
+
+            const conformidade = [
+                linhaDetalhe("Conformidade (24 h)", leituras.conformidade_pct === null || leituras.conformidade_pct === undefined
+                    ? "sem leituras"
+                    : `${formatarNumero(leituras.conformidade_pct)} %`),
+                linhaDetalhe("Leituras (24 h)", `${leituras.total ?? 0} · ${leituras.fora_faixa ?? 0} fora da faixa`),
+                linhaDetalhe("Alertas (24 h)", `${alertasResumo.total ?? 0} · ${alertasResumo.abertos ?? 0} aberto(s)`)
+            ].join("");
+
+            const listaAbertos = abertos.length
+                ? abertos.map((alerta) => `
+                    <div class="mt-2 pt-2 border-t border-[#eceae4] text-[11px] text-[#5f5f5d]">
+                        ${escaparHtml(`${alerta.tipo} ${alerta.sentido} · ${alerta.severidade} · há ${formatarIntervalo(alerta.duracao_seg)}`)}
+                        (extremo ${formatarNumero(alerta.valor_extremo)}, limite ${formatarNumero(alerta.limite_violado)})
+                    </div>
+                `).join("")
+                : `<div class="mt-2 pt-2 border-t border-[#eceae4] text-[11px] text-[#5f5f5d]">Nenhum alerta aberto.</div>`;
+
+            const portaConteudo = porta
+                ? [
+                    linhaDetalhe("Estado", porta.porta_aberta === null
+                        ? "sem registro"
+                        : porta.porta_aberta
+                            ? `Aberta desde ${formatarDataLocal(porta.aberta_desde_utc)}`
+                            : "Fechada"),
+                    linhaDetalhe("Aberturas (7 d)", String(porta.total_aberturas ?? 0)),
+                    linhaDetalhe("Duração média", porta.duracao_media_seg === null ? "-" : formatarIntervalo(porta.duracao_media_seg)),
+                    linhaDetalhe("Duração máxima", porta.duracao_maxima_seg === null ? "-" : formatarIntervalo(porta.duracao_maxima_seg))
+                ].join("")
+                : linhaDetalhe("Estado", "sem dados");
+
+            blocos.innerHTML =
+                blocoDetalhe("Faixa ideal e ingestão", faixa) +
+                blocoDetalhe("Conformidade e alertas", conformidade + listaAbertos) +
+                blocoDetalhe("Porta", portaConteudo);
+        }
+
+        async function carregarDetalheAmbiente(ambienteId, silencioso = false) {
+            const caixa = document.getElementById("ambiente-detalhe");
+            const blocos = document.getElementById("detalhe-blocos");
+            if (!caixa || !blocos) return;
+
+            caixa.classList.remove("hidden");
+            if (!silencioso) {
+                blocos.innerHTML = `<div class="md:col-span-3 text-[13px] text-[#5f5f5d]">A carregar detalhe do ambiente...</div>`;
+            }
+
+            try {
+                const [atual, resumo, abertos, porta] = await Promise.all([
+                    lerApi(`/api/telemetria/atual?ambiente_id=${encodeURIComponent(ambienteId)}`),
+                    lerApi(`/api/alertas/resumo?ambiente_id=${encodeURIComponent(ambienteId)}`),
+                    lerApi(`/api/alertas?abertos=1&ambiente_id=${encodeURIComponent(ambienteId)}`),
+                    lerApi(`/api/porta/resumo?ambiente_id=${encodeURIComponent(ambienteId)}`)
+                ]);
+                renderizarDetalheAmbiente(atual?.data, resumo?.data, abertos?.data || [], porta?.data);
+            } catch (err) {
+                blocos.innerHTML = `<div class="md:col-span-3 text-[13px] text-red-700">${escaparHtml(err.message)}</div>`;
+            }
+        }
+
+        function selecionarAmbiente(ambienteId) {
+            ambienteSelecionadoId = Number(ambienteId);
+            renderizarGradeAmbientes();
+            carregarDetalheAmbiente(ambienteSelecionadoId);
+        }
+
+        function fecharDetalheAmbiente() {
+            ambienteSelecionadoId = null;
+            const caixa = document.getElementById("ambiente-detalhe");
+            if (caixa) caixa.classList.add("hidden");
+            renderizarGradeAmbientes();
+        }
+
+        function atualizarPainelDoBanco() {
+            carregarAmbientesMonitor();
+            carregarDispositivosPendentes();
+        }
+
+        function iniciarMonitorBanco() {
+            atualizarPainelDoBanco();
+            if (monitorTimer) return;
+            monitorTimer = setInterval(() => {
+                const aba = document.getElementById("aba-monitor");
+                if (aba && !aba.classList.contains("hidden")) atualizarPainelDoBanco();
+            }, MONITOR_REFRESH_MS);
+        }
+
+        const btnAtualizarAmbientes = document.getElementById("btn-atualizar-ambientes");
+        if (btnAtualizarAmbientes) btnAtualizarAmbientes.addEventListener("click", atualizarPainelDoBanco);
+
+        const btnFecharDetalhe = document.getElementById("btn-fechar-detalhe");
+        if (btnFecharDetalhe) btnFecharDetalhe.addEventListener("click", fecharDetalheAmbiente);
 
         function limparFormularioUsuario() {
             document.getElementById('usr_id').value = '';
